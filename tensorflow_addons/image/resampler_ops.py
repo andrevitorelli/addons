@@ -19,14 +19,17 @@ import tensorflow as tf
 from tensorflow_addons.utils import types
 from tensorflow_addons.utils.resource_loader import LazySO
 
-from typing import Optional
+from typing import Optional, Type
 
 _resampler_so = LazySO("custom_ops/image/_resampler_ops.so")
 
 
 @tf.function
 def resampler(
-    data: types.TensorLike, warp: types.TensorLike, name: Optional[str] = None
+    data: types.TensorLike, 
+    warp: types.TensorLike,
+    method: Type[tf.image.ResizeMethod] = tf.image.ResizeMethod.BILINEAR,
+    name: Optional[str] = None
 ) -> tf.Tensor:
     """Resamples input data at user defined coordinates.
 
@@ -54,7 +57,11 @@ def resampler(
     with tf.name_scope(name or "resampler"):
         data_tensor = tf.convert_to_tensor(data, name="data")
         warp_tensor = tf.convert_to_tensor(warp, name="warp")
-        return _resampler_so.ops.addons_resampler(data_tensor, warp_tensor, 'triangle')
+        if method == tf.image.ResizeMethod.BILINEAR:
+          kernel_type = 'triangle'
+        else:
+          kernel_type = 'keyscubic'
+        return _resampler_so.ops.addons_resampler(data_tensor, warp_tensor, kernel_type)
 
 
 @tf.RegisterGradient("Addons>Resampler")

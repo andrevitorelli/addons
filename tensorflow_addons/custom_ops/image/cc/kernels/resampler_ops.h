@@ -20,8 +20,13 @@
 #define __restrict__ __restrict
 #endif
 
+#include <string>
+
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/kernels/image/sampling_kernels.h"
+#include "tensorflow/core/lib/core/stringpiece.h"
+#include "tensorflow/core/lib/strings/str_util.h"
+
 
 namespace tensorflow {
 namespace addons {

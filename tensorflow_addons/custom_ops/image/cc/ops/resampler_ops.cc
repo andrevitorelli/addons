@@ -30,7 +30,7 @@ REGISTER_OP("Addons>Resampler")
     .Input("warp: T")
     .Output("output: T")
     .Attr("T: {half, float, double}")
-    .Attr("kernel_type: string = 'bilinear'")
+    .Attr("kernel_type: string = 'triangle'")
     .SetShapeFn([](InferenceContext* c) {
       ShapeHandle data;
       ShapeHandle warp;
