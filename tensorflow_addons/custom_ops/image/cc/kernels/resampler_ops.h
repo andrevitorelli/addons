@@ -21,6 +21,7 @@
 #endif
 
 #include "tensorflow/core/framework/op_kernel.h"
+#include "tensorflow/core/kernels/image/sampling_kernels.h"
 
 namespace tensorflow {
 namespace addons {
@@ -33,7 +34,8 @@ struct Resampler2DFunctor {
                   const T* __restrict__ data, const T* __restrict__ warp,
                   T* __restrict__ output, const int batch_size,
                   const int data_height, const int data_width,
-                  const int data_channels, const int num_sampling_points);
+                  const int data_channels, const int num_sampling_points, 
+                  const tensorflow::functor::SamplingKernelType kernel_type);
 };
 
 // Helper functor for the Resampler Gradient Op in 2D

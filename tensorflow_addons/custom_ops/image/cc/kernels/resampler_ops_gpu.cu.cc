@@ -116,7 +116,8 @@ struct Resampler2DFunctor<GPUDevice, T> {
                   const T* __restrict__ data, const T* __restrict__ warp,
                   T* __restrict__ output, const int batch_size,
                   const int data_height, const int data_width,
-                  const int data_channels, const int num_sampling_points) {
+                  const int data_channels, const int num_sampling_points,
+                  const tensorflow::functor::SamplingKernelType kernel_type) {
     const int output_data_size =
         batch_size * num_sampling_points * data_channels;
     GpuLaunchConfig config = GetGpuLaunchConfig(output_data_size, d);

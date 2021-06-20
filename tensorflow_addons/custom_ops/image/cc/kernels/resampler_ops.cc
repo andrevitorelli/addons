@@ -28,6 +28,7 @@
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/util/work_sharder.h"
 
+
 namespace tensorflow {
 
 namespace addons {
@@ -43,12 +44,15 @@ struct Resampler2DFunctor<CPUDevice, T> {
                   const T* __restrict__ data, const T* __restrict__ warp,
                   T* __restrict__ output, const int batch_size,
                   const int data_height, const int data_width,
-                  const int data_channels, const int num_sampling_points) {
+                  const int data_channels, const int num_sampling_points,
+                  const tensorflow::functor::SamplingKernelType kernel_type) {
     const int warp_batch_stride = num_sampling_points * 2;
     const int data_batch_stride = data_height * data_width * data_channels;
     const int output_batch_stride = num_sampling_points * data_channels;
     const T zero = static_cast<T>(0.0);
     const T one = static_cast<T>(1.0);
+
+    auto kernel = tensorflow::functor::CreateTriangleKernel();
 
     auto resample_batches = [&](const int start, const int limit) {
       for (int batch_id = start; batch_id < limit; ++batch_id) {
@@ -84,23 +88,47 @@ struct Resampler2DFunctor<CPUDevice, T> {
           if (x > static_cast<T>(-1.0) && y > static_cast<T>(-1.0) &&
               x < static_cast<T>(data_width) &&
               y < static_cast<T>(data_height)) {
+
             // Precompute floor (f) and ceil (c) values for x and y.
             const int fx = std::floor(static_cast<float>(x));
             const int fy = std::floor(static_cast<float>(y));
-            const int cx = fx + 1;
-            const int cy = fy + 1;
-            const T dx = static_cast<T>(cx) - x;
-            const T dy = static_cast<T>(cy) - y;
 
-            for (int chan = 0; chan < data_channels; ++chan) {
-              const T img_fxfy = dx * dy * get_data_point(fx, fy, chan);
-              const T img_cxcy =
-                  (one - dx) * (one - dy) * get_data_point(cx, cy, chan);
-              const T img_fxcy = dx * (one - dy) * get_data_point(fx, cy, chan);
-              const T img_cxfy = (one - dx) * dy * get_data_point(cx, fy, chan);
-              set_output(sample_id, chan,
-                         img_fxfy + img_cxcy + img_fxcy + img_cxfy);
+            // Custom Linear interpolation
+            if(kernel_type == tensorflow::functor::TriangleKernel){
+              const int span_size = static_cast<int>(std::ceil(kernel.Radius()));
+
+              for (int chan = 0; chan < data_channels; ++chan) {
+                T res = zero;
+
+                for(int inx=-span_size; inx <= span_size; inx++){
+                  for(int iny=-span_size; iny <= span_size; iny++){        
+                    const int cx = fx + inx;
+                    const int cy = fy + iny;
+                    const float dx = static_cast<float>(cx) - static_cast<float>(x);
+                    const float dy = static_cast<float>(cy) - static_cast<float>(y);
+                    res += get_data_point(cx, cy, chan) * static_cast<T>(kernel(dx) * kernel(dy));
+                  }
+                }
+                set_output(sample_id, chan, res);
+              }
+
+            }else{
+              const int cx = fx + 1;
+              const int cy = fy + 1;
+              const T dx = static_cast<T>(cx) - x;
+              const T dy = static_cast<T>(cy) - y;
+
+              for (int chan = 0; chan < data_channels; ++chan) {
+                const T img_fxfy = dx * dy * get_data_point(fx, fy, chan);
+                const T img_cxcy =
+                    (one - dx) * (one - dy) * get_data_point(cx, cy, chan);
+                const T img_fxcy = dx * (one - dy) * get_data_point(fx, cy, chan);
+                const T img_cxfy = (one - dx) * dy * get_data_point(cx, fy, chan);
+                set_output(sample_id, chan,
+                          img_fxfy + img_cxcy + img_fxcy + img_cxfy);
+              }
             }
+
           } else {
             for (int chan = 0; chan < data_channels; ++chan) {
               set_output(sample_id, chan, zero);
@@ -127,7 +155,14 @@ struct Resampler2DFunctor<CPUDevice, T> {
 template <typename Device, typename T>
 class ResamplerOp : public OpKernel {
  public:
-  explicit ResamplerOp(OpKernelConstruction* context) : OpKernel(context) {}
+  explicit ResamplerOp(OpKernelConstruction* context) : OpKernel(context) {
+    string kernel_type_str;
+    OP_REQUIRES_OK(context, context->GetAttr("kernel_type", &kernel_type_str));
+    kernel_type_ = tensorflow::functor::SamplingKernelTypeFromString(kernel_type_str);
+    OP_REQUIRES(context, kernel_type_ != tensorflow::functor::SamplingKernelTypeEnd,
+                errors::InvalidArgument("Unrecognized kernel type: " +
+                                        kernel_type_str));
+  }
 
   void Compute(OpKernelContext* ctx) override {
     const Tensor& data = ctx->input(0);
@@ -172,10 +207,11 @@ class ResamplerOp : public OpKernel {
       functor::Resampler2DFunctor<Device, T>()(
           ctx, ctx->eigen_device<Device>(), data.flat<T>().data(),
           warp.flat<T>().data(), output->flat<T>().data(), batch_size,
-          data_height, data_width, data_channels, num_sampling_points);
+          data_height, data_width, data_channels, num_sampling_points, kernel_type_);
     }
   }
 
+  tensorflow::functor::SamplingKernelType kernel_type_;
  private:
   TF_DISALLOW_COPY_AND_ASSIGN(ResamplerOp);
 };
