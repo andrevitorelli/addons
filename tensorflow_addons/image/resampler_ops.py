@@ -54,7 +54,7 @@ def resampler(
     with tf.name_scope(name or "resampler"):
         data_tensor = tf.convert_to_tensor(data, name="data")
         warp_tensor = tf.convert_to_tensor(warp, name="warp")
-        return _resampler_so.ops.addons_resampler(data_tensor, warp_tensor)
+        return _resampler_so.ops.addons_resampler(data_tensor, warp_tensor, 'triangle')
 
 
 @tf.RegisterGradient("Addons>Resampler")
