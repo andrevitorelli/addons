@@ -61,6 +61,8 @@ def resampler(
           kernel_type = 'triangle'
         else:
           kernel_type = 'keyscubic'
+        #resampler = _resampler_so.ops.addons_resampler(data_tensor, warp_tensor, kernel_type)
+        #resampler.kernel_type = kernel_type
         return _resampler_so.ops.addons_resampler(data_tensor, warp_tensor, kernel_type)
 
 
@@ -68,7 +70,7 @@ def resampler(
 def _resampler_grad(op: types.TensorLike, grad_output: types.TensorLike) -> tf.Tensor:
     data, warp = op.inputs
     grad_output_tensor = tf.convert_to_tensor(grad_output, name="grad_output")
-    return _resampler_so.ops.addons_resampler_grad(data, warp, grad_output_tensor)
+    return _resampler_so.ops.addons_resampler_grad(data, warp, grad_output_tensor, kernel_type=op.get_attr("kernel_type"))
 
 
 tf.no_gradient("Addons>ResamplerGrad")

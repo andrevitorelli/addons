@@ -163,6 +163,8 @@ class ResamplerOp : public OpKernel {
     OP_REQUIRES(context, kernel_type_ != tensorflow::functor::SamplingKernelTypeEnd,
                 errors::InvalidArgument("Unrecognized kernel type: " +
                                         kernel_type_str));
+    // Cleanup this
+    LOG(INFO) << "ResamplerOp: kernel type is " << kernel_type_str;
   }
 
   void Compute(OpKernelContext* ctx) override {
@@ -368,8 +370,18 @@ struct ResamplerGrad2DFunctor<CPUDevice, T> {
 
 template <typename Device, typename T>
 class ResamplerGradOp : public OpKernel {
+  tensorflow::functor::SamplingKernelType kernel_type_; 
  public:
-  explicit ResamplerGradOp(OpKernelConstruction* context) : OpKernel(context) {}
+  explicit ResamplerGradOp(OpKernelConstruction* context) : OpKernel(context) {
+    string kernel_type_str;
+    OP_REQUIRES_OK(context, context->GetAttr("kernel_type", &kernel_type_str));
+    kernel_type_ = tensorflow::functor::SamplingKernelTypeFromString(kernel_type_str);
+    OP_REQUIRES(context, kernel_type_ != tensorflow::functor::SamplingKernelTypeEnd,
+                errors::InvalidArgument("Unrecognized kernel type: " +
+                                        kernel_type_str));
+    // Cleanup this
+    LOG(INFO) << "ResaamplerGradOp: kernel type is " << kernel_type_str;
+  }
 
   void Compute(OpKernelContext* ctx) override {
     const Tensor& data = ctx->input(0);
@@ -423,7 +435,6 @@ class ResamplerGradOp : public OpKernel {
           data_height, data_width, data_channels, num_sampling_points);
     }
   }
-
  private:
   TF_DISALLOW_COPY_AND_ASSIGN(ResamplerGradOp);
 };
