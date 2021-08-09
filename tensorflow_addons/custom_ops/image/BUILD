@@ -38,6 +38,7 @@ custom_op_library(
         "cc/kernels/resampler_ops.cc",
         "cc/kernels/resampler_ops.h",
         "cc/ops/resampler_ops.cc",
+        "cc/kernels/register_kernel_factory.h"
     ],
     cuda_srcs = [
         "cc/kernels/resampler_ops.h",

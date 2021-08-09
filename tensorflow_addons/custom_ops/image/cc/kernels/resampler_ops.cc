@@ -164,7 +164,7 @@ class ResamplerOp : public OpKernel {
                 errors::InvalidArgument("Unrecognized kernel type: " +
                                         kernel_type_str));
     // Cleanup this
-    LOG(INFO) << "ResamplerOp: kernel type is " << kernel_type_str;
+    LOG(INFO) << "ResaamplerOp: kernel type is " << kernel_type_str;
   }
 
   void Compute(OpKernelContext* ctx) override {
@@ -219,6 +219,38 @@ class ResamplerOp : public OpKernel {
   TF_DISALLOW_COPY_AND_ASSIGN(ResamplerOp);
 };
 
+template <typename Device, typename T>
+class ResamplerOpFactory: public ::tensorflow::kernel_factory::OpKernelFactory {
+    OpKernel* Create(OpKernelConstruction* context) override {
+        return new ResamplerOp<Device, T>(context);
+    }
+};
+
+#include "register_kernel_factory.h"
+
+#define REGISTER(TYPE)                                                       \
+  REGISTER_KERNEL_FACTORY(                                                   \
+      Name("Addons>Resampler").Device(DEVICE_CPU).TypeConstraint<TYPE>("T"), \
+      ResamplerOpFactory<CPUDevice, TYPE>);
+
+TF_CALL_half(REGISTER);
+TF_CALL_float(REGISTER);
+TF_CALL_double(REGISTER);
+#undef REGISTER
+
+#if GOOGLE_CUDA
+#define REGISTER(TYPE)                                                       \
+  REGISTER_KERNEL_FACTORY(                                                   \
+      Name("Addons>Resampler").Device(DEVICE_GPU).TypeConstraint<TYPE>("T"), \
+      ResamplerOpFactory<GPUDevice, TYPE>)
+
+TF_CALL_half(REGISTER);
+TF_CALL_float(REGISTER);
+TF_CALL_double(REGISTER);
+#undef REGISTER
+#endif  // GOOGLE_CUDA
+
+/*
 #define REGISTER(TYPE)                                                       \
   REGISTER_KERNEL_BUILDER(                                                   \
       Name("Addons>Resampler").Device(DEVICE_CPU).TypeConstraint<TYPE>("T"), \
@@ -240,7 +272,7 @@ TF_CALL_float(REGISTER);
 TF_CALL_double(REGISTER);
 #undef REGISTER
 #endif  // GOOGLE_CUDA
-
+*/
 namespace functor {
 
 template <typename T>
