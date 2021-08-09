@@ -56,16 +56,37 @@ namespace addons {
 using CPUDevice = Eigen::ThreadPoolDevice;
 using GPUDevice = Eigen::GpuDevice;
 
+template <typename kernel_class>
+class ResamplerKernelHelper {
+};
+
+template <>
+class ResamplerKernelHelper< tensorflow::functor::TriangleKernelFunc> {
+public:
+    typedef  tensorflow::functor::TriangleKernelFunc kernelFunc;
+    static inline kernelFunc createKernelFunction() {
+        return tensorflow::functor::CreateTriangleKernel();
+    }
+};
+
+template <>
+class ResamplerKernelHelper< tensorflow::functor::KeysCubicKernelFunc> {
+public:
+    typedef  tensorflow::functor::KeysCubicKernelFunc kernelFunc;
+    static inline kernelFunc createKernelFunction() {
+        return tensorflow::functor::CreateKeysCubicKernel();
+    }
+};
+
 namespace functor {
 
-template <typename T>
-struct Resampler2DFunctor<CPUDevice, T> {
+template <typename kernel_functor_class, typename T>
+struct Resampler2DFunctor<CPUDevice, kernel_functor_class, T> {
   void operator()(OpKernelContext* ctx, const CPUDevice& d,
                   const T* __restrict__ data, const T* __restrict__ warp,
                   T* __restrict__ output, const int batch_size,
                   const int data_height, const int data_width,
-                  const int data_channels, const int num_sampling_points,
-                  const tensorflow::functor::SamplingKernelType kernel_type) {
+                  const int data_channels, const int num_sampling_points) {
     const int warp_batch_stride = num_sampling_points * 2;
     const int data_batch_stride = data_height * data_width * data_channels;
     const int output_batch_stride = num_sampling_points * data_channels;
@@ -73,7 +94,7 @@ struct Resampler2DFunctor<CPUDevice, T> {
     const T one = static_cast<T>(1.0);
 
     // Creating the interpolation kernel
-    auto kernel = tensorflow::functor::CreateKeysCubicKernel();
+    auto kernel = ResamplerKernelHelper<kernel_functor_class>::createKernelFunction();
 
     auto resample_batches = [&](const int start, const int limit) {
       for (int batch_id = start; batch_id < limit; ++batch_id) {
@@ -153,19 +174,10 @@ struct Resampler2DFunctor<CPUDevice, T> {
 
 }  // namespace functor
 
-template <typename Device, typename T>
+template <typename Device, typename kernel_functor_class, typename T>
 class ResamplerOp : public OpKernel {
  public:
-  explicit ResamplerOp(OpKernelConstruction* context) : OpKernel(context) {
-    string kernel_type_str;
-    OP_REQUIRES_OK(context, context->GetAttr("kernel_type", &kernel_type_str));
-    kernel_type_ = tensorflow::functor::SamplingKernelTypeFromString(kernel_type_str);
-    OP_REQUIRES(context, kernel_type_ != tensorflow::functor::SamplingKernelTypeEnd,
-                errors::InvalidArgument("Unrecognized kernel type: " +
-                                        kernel_type_str));
-    // Cleanup this
-    LOG(INFO) << "ResaamplerOp: kernel type is " << kernel_type_str;
-  }
+  explicit ResamplerOp(OpKernelConstruction* context) : OpKernel(context) {}
 
   void Compute(OpKernelContext* ctx) override {
     const Tensor& data = ctx->input(0);
@@ -207,22 +219,52 @@ class ResamplerOp : public OpKernel {
     // Execute kernel only for nonempty output; otherwise Eigen crashes on GPU.
     if (data.NumElements() > 0 && warp.NumElements() > 0) {
       const int num_sampling_points = warp.NumElements() / batch_size / 2;
-      functor::Resampler2DFunctor<Device, T>()(
+      functor::Resampler2DFunctor<Device, kernel_functor_class, T>()(
           ctx, ctx->eigen_device<Device>(), data.flat<T>().data(),
           warp.flat<T>().data(), output->flat<T>().data(), batch_size,
-          data_height, data_width, data_channels, num_sampling_points, kernel_type_);
+          data_height, data_width, data_channels, num_sampling_points);
     }
   }
 
-  tensorflow::functor::SamplingKernelType kernel_type_;
  private:
   TF_DISALLOW_COPY_AND_ASSIGN(ResamplerOp);
 };
-
+  
 template <typename Device, typename T>
 class ResamplerOpFactory: public ::tensorflow::kernel_factory::OpKernelFactory {
     OpKernel* Create(OpKernelConstruction* context) override {
-        return new ResamplerOp<Device, T>(context);
+        string kernel_type_str;
+        ::tensorflow::Status s(context->GetAttr("kernel_type", &kernel_type_str));
+        if(!TF_PREDICT_TRUE(s.ok())) {
+            context->CtxFailureWithWarning(__FILE__, __LINE__, s);
+            return nullptr;
+        }
+        LOG(INFO) << "ResamplerOpFactory: kernel type is " << kernel_type_str;
+        tensorflow::functor::SamplingKernelType kernel_type_ = tensorflow::functor::SamplingKernelTypeFromString(kernel_type_str);
+        
+        OpKernel *kernel = nullptr;
+        
+        switch(kernel_type_) {
+            case tensorflow::functor::TriangleKernel:
+                kernel =  new ResamplerOp<Device, tensorflow::functor::TriangleKernelFunc, T>(context);
+                break;
+            
+            case tensorflow::functor::KeysCubicKernel:
+                kernel = new ResamplerOp<Device, tensorflow::functor::KeysCubicKernelFunc, T>(context);
+                break;
+                
+            case tensorflow::functor::SamplingKernelTypeEnd:
+                context->CtxFailure(__FILE__, __LINE__,  
+                    errors::InvalidArgument("Unrecognized kernel type: " + kernel_type_str));
+                break;
+
+            default:
+                context->CtxFailure(__FILE__, __LINE__,  
+                    errors::InvalidArgument("Unsupported kernel type: " + kernel_type_str));
+                break;
+        }
+        
+        return kernel;
     }
 };
 
