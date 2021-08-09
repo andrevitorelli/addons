@@ -33,14 +33,13 @@ namespace addons {
 namespace functor {
 
 // Helper functor for the Resampler Op in 2D
-template <typename Device, typename T>
+template <typename Device, typename kernel_functor_class, typename T>
 struct Resampler2DFunctor {
   void operator()(OpKernelContext* ctx, const Device& d,
                   const T* __restrict__ data, const T* __restrict__ warp,
                   T* __restrict__ output, const int batch_size,
                   const int data_height, const int data_width,
-                  const int data_channels, const int num_sampling_points, 
-                  const tensorflow::functor::SamplingKernelType kernel_type);
+                  const int data_channels, const int num_sampling_points);
 };
 
 // Helper functor for the Resampler Gradient Op in 2D

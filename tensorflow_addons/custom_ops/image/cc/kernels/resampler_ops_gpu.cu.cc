@@ -110,14 +110,13 @@ __global__ void Resampler2DKernel(const T* __restrict__ data,
 
 namespace functor {
 
-template <typename T>
-struct Resampler2DFunctor<GPUDevice, T> {
+template <typename kernel_functor_class, typename T>
+struct Resampler2DFunctor<GPUDevice, kernel_functor_class, T> {
   void operator()(OpKernelContext* ctx, const GPUDevice& d,
                   const T* __restrict__ data, const T* __restrict__ warp,
                   T* __restrict__ output, const int batch_size,
                   const int data_height, const int data_width,
-                  const int data_channels, const int num_sampling_points,
-                  const tensorflow::functor::SamplingKernelType kernel_type) {
+                  const int data_channels, const int num_sampling_points) {
     const int output_data_size =
         batch_size * num_sampling_points * data_channels;
     GpuLaunchConfig config = GetGpuLaunchConfig(output_data_size, d);
@@ -128,9 +127,15 @@ struct Resampler2DFunctor<GPUDevice, T> {
   }
 };
 
-template struct Resampler2DFunctor<GPUDevice, Eigen::half>;
-template struct Resampler2DFunctor<GPUDevice, float>;
-template struct Resampler2DFunctor<GPUDevice, double>;
+
+// FIXME: Move factory code to common header so this can be removed
+template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::TriangleKernelFunc, Eigen::half>;
+template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::TriangleKernelFunc, float>;
+template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::TriangleKernelFunc, double>;
+template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::KeysCubicKernelFunc, Eigen::half>;
+template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::KeysCubicKernelFunc, float>;
+template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::KeysCubicKernelFunc, double>;
+
 
 }  // namespace functor
 
