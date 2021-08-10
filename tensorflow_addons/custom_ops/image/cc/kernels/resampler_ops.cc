@@ -56,27 +56,6 @@ namespace addons {
 using CPUDevice = Eigen::ThreadPoolDevice;
 using GPUDevice = Eigen::GpuDevice;
 
-template <typename kernel_class>
-class ResamplerKernelHelper {
-};
-
-template <>
-class ResamplerKernelHelper< tensorflow::functor::TriangleKernelFunc> {
-public:
-    typedef  tensorflow::functor::TriangleKernelFunc kernelFunc;
-    static inline kernelFunc createKernelFunction() {
-        return tensorflow::functor::CreateTriangleKernel();
-    }
-};
-
-template <>
-class ResamplerKernelHelper< tensorflow::functor::KeysCubicKernelFunc> {
-public:
-    typedef  tensorflow::functor::KeysCubicKernelFunc kernelFunc;
-    static inline kernelFunc createKernelFunction() {
-        return tensorflow::functor::CreateKeysCubicKernel();
-    }
-};
 
 namespace functor {
 
@@ -229,7 +208,7 @@ class ResamplerOp : public OpKernel {
  private:
   TF_DISALLOW_COPY_AND_ASSIGN(ResamplerOp);
 };
-  
+
 template <typename Device, typename T>
 class ResamplerOpFactory: public ::tensorflow::kernel_factory::OpKernelFactory {
     OpKernel* Create(OpKernelConstruction* context) override {
@@ -292,33 +271,10 @@ TF_CALL_double(REGISTER);
 #undef REGISTER
 #endif  // GOOGLE_CUDA
 
-/*
-#define REGISTER(TYPE)                                                       \
-  REGISTER_KERNEL_BUILDER(                                                   \
-      Name("Addons>Resampler").Device(DEVICE_CPU).TypeConstraint<TYPE>("T"), \
-      ResamplerOp<CPUDevice, TYPE>);
-
-TF_CALL_half(REGISTER);
-TF_CALL_float(REGISTER);
-TF_CALL_double(REGISTER);
-#undef REGISTER
-
-#if GOOGLE_CUDA
-#define REGISTER(TYPE)                                                       \
-  REGISTER_KERNEL_BUILDER(                                                   \
-      Name("Addons>Resampler").Device(DEVICE_GPU).TypeConstraint<TYPE>("T"), \
-      ResamplerOp<GPUDevice, TYPE>)
-
-TF_CALL_half(REGISTER);
-TF_CALL_float(REGISTER);
-TF_CALL_double(REGISTER);
-#undef REGISTER
-#endif  // GOOGLE_CUDA
-*/
 namespace functor {
 
-template <typename T>
-struct ResamplerGrad2DFunctor<CPUDevice, T> {
+template <typename kernel_functor_class, typename T>
+struct ResamplerGrad2DFunctor<CPUDevice, kernel_functor_class, T> {
   void operator()(OpKernelContext* ctx, const CPUDevice& d,
                   const T* __restrict__ data, const T* __restrict__ warp,
                   const T* __restrict__ grad_output, T* __restrict__ grad_data,
@@ -340,6 +296,11 @@ struct ResamplerGrad2DFunctor<CPUDevice, T> {
     const int output_batch_stride = num_sampling_points * data_channels;
     const T zero = static_cast<T>(0.0);
     const T one = static_cast<T>(1.0);
+    
+    // Creating the interpolation kernel and its 1st derivative
+    auto kernel = ResamplerKernelHelper<kernel_functor_class>::createKernelFunction();
+    auto kernelderivative = ResamplerKernelHelper<kernel_functor_class>::createKernelDerivativeFunction();
+    //LOG(INFO) << "ResamplerGrad2DFunctor sanity check: kernel derivative = " << kernelderivative(1.5) << " (symbolic) " << (kernel(1.525)-kernel(1.475))/(0.05) << " (finite differences).\n";
 
     auto update_grads_for_batches = [&](const int start, const int limit) {
       for (int batch_id = start; batch_id < limit; ++batch_id) {
@@ -388,13 +349,44 @@ struct ResamplerGrad2DFunctor<CPUDevice, T> {
             // Precompute floor (f) and ceil (c) values for x and y.
             const int fx = std::floor(static_cast<float>(x));
             const int fy = std::floor(static_cast<float>(y));
-            const int cx = fx + 1;
-            const int cy = fy + 1;
-            const T dx = static_cast<T>(cx) - x;
-            const T dy = static_cast<T>(cy) - y;
+            //const int cx = fx + 1;
+            //const int cy = fy + 1;
+            //const T dx = static_cast<T>(cx) - x;
+            //const T dy = static_cast<T>(cy) - y;
 
+            
+          
             for (int chan = 0; chan < data_channels; ++chan) {
+            
               const T grad_output_value =
+                  grad_output[batch_id * output_batch_stride +
+                              sample_id * data_channels + chan];
+              T ddx = zero; // Accumulator for warp derivative (x component)
+              T ddy = zero; // Accumulator for warp derivative (y component)
+              const int span_size = static_cast<int>(std::ceil(kernel.Radius()));
+              for(int inx=-span_size; inx <= span_size; inx++){
+                for(int iny=-span_size; iny <= span_size; iny++){        
+                  const int cx = fx + inx;
+                  const int cy = fy + iny;
+                  const float dx = static_cast<float>(cx) - static_cast<float>(x);
+                  const float dy = static_cast<float>(cy) - static_cast<float>(y);
+                  auto val = get_data_point(cx, cy, chan);
+                  
+                  auto kernel_x = kernel(dx);
+                  auto kernel_y = kernel(dy);
+                  
+                  ddx -= val * static_cast<T>(kernelderivative(dx) * kernel_y);
+                  ddy -= val * static_cast<T>(kernelderivative(dy) * kernel_x);
+                  
+                  // Update partial gradients wrt sampled data
+                  update_grad_data(cx, cy, chan, grad_output_value*static_cast<T>(kernel_x*kernel_y));
+                }
+              }
+              // Update partial gradients wrt relevant warp field entries
+              update_grad_warp(sample_id, 0, grad_output_value*ddx);
+              update_grad_warp(sample_id, 1, grad_output_value*ddy);
+              
+              /*const T grad_output_value =
                   grad_output[batch_id * output_batch_stride +
                               sample_id * data_channels + chan];
               const T img_fxfy = get_data_point(fx, fy, chan);
@@ -420,7 +412,7 @@ struct ResamplerGrad2DFunctor<CPUDevice, T> {
               update_grad_data(fx, cy, chan,
                                grad_output_value * dx * (one - dy));
               update_grad_data(cx, fy, chan,
-                               grad_output_value * (one - dx) * dy);
+                               grad_output_value * (one - dx) * dy);*/
             }
           }
         }
@@ -442,20 +434,11 @@ struct ResamplerGrad2DFunctor<CPUDevice, T> {
 
 }  // namespace functor
 
-template <typename Device, typename T>
+template <typename Device, typename kernel_functor_class, typename T>
 class ResamplerGradOp : public OpKernel {
   tensorflow::functor::SamplingKernelType kernel_type_; 
  public:
-  explicit ResamplerGradOp(OpKernelConstruction* context) : OpKernel(context) {
-    string kernel_type_str;
-    OP_REQUIRES_OK(context, context->GetAttr("kernel_type", &kernel_type_str));
-    kernel_type_ = tensorflow::functor::SamplingKernelTypeFromString(kernel_type_str);
-    OP_REQUIRES(context, kernel_type_ != tensorflow::functor::SamplingKernelTypeEnd,
-                errors::InvalidArgument("Unrecognized kernel type: " +
-                                        kernel_type_str));
-    // Cleanup this
-    LOG(INFO) << "ResaamplerGradOp: kernel type is " << kernel_type_str;
-  }
+  explicit ResamplerGradOp(OpKernelConstruction* context) : OpKernel(context) {}
 
   void Compute(OpKernelContext* ctx) override {
     const Tensor& data = ctx->input(0);
@@ -502,7 +485,7 @@ class ResamplerGradOp : public OpKernel {
     // Execute kernel only for nonempty output; otherwise Eigen crashes on GPU.
     if (data.NumElements() > 0 && warp.NumElements() > 0) {
       const int num_sampling_points = warp.NumElements() / batch_size / 2;
-      functor::ResamplerGrad2DFunctor<Device, T>()(
+      functor::ResamplerGrad2DFunctor<Device, kernel_functor_class, T>()(
           ctx, ctx->eigen_device<Device>(), data.flat<T>().data(),
           warp.flat<T>().data(), grad_output.flat<T>().data(),
           grad_data->flat<T>().data(), grad_warp->flat<T>().data(), batch_size,
@@ -513,11 +496,49 @@ class ResamplerGradOp : public OpKernel {
   TF_DISALLOW_COPY_AND_ASSIGN(ResamplerGradOp);
 };
 
+template <typename Device, typename T>
+class ResamplerGradOpFactory: public ::tensorflow::kernel_factory::OpKernelFactory {
+    OpKernel* Create(OpKernelConstruction* context) override {
+        string kernel_type_str;
+        ::tensorflow::Status s(context->GetAttr("kernel_type", &kernel_type_str));
+        if(!TF_PREDICT_TRUE(s.ok())) {
+            context->CtxFailureWithWarning(__FILE__, __LINE__, s);
+            return nullptr;
+        }
+        LOG(INFO) << "ResamplerGradOpFactory: kernel type is " << kernel_type_str;
+        tensorflow::functor::SamplingKernelType kernel_type_ = tensorflow::functor::SamplingKernelTypeFromString(kernel_type_str);
+        
+        OpKernel *kernel = nullptr;
+        
+        switch(kernel_type_) {
+            case tensorflow::functor::TriangleKernel:
+                kernel =  new ResamplerGradOp<Device, tensorflow::functor::TriangleKernelFunc, T>(context);
+                break;
+            
+            case tensorflow::functor::KeysCubicKernel:
+                kernel = new ResamplerGradOp<Device, tensorflow::functor::KeysCubicKernelFunc, T>(context);
+                break;
+                
+            case tensorflow::functor::SamplingKernelTypeEnd:
+                context->CtxFailure(__FILE__, __LINE__,  
+                    errors::InvalidArgument("Unrecognized kernel type: " + kernel_type_str));
+                break;
+
+            default:
+                context->CtxFailure(__FILE__, __LINE__,  
+                    errors::InvalidArgument("Unsupported kernel type: " + kernel_type_str));
+                break;
+        }
+        
+        return kernel;
+    }
+};
+
 #define REGISTER(TYPE)                                    \
-  REGISTER_KERNEL_BUILDER(Name("Addons>ResamplerGrad")    \
+  REGISTER_KERNEL_FACTORY(Name("Addons>ResamplerGrad")    \
                               .Device(DEVICE_CPU)         \
                               .TypeConstraint<TYPE>("T"), \
-                          ResamplerGradOp<CPUDevice, TYPE>);
+                          ResamplerGradOpFactory<CPUDevice, TYPE>);
 
 TF_CALL_half(REGISTER);
 TF_CALL_float(REGISTER);
@@ -526,10 +547,10 @@ TF_CALL_double(REGISTER);
 
 #if GOOGLE_CUDA
 #define REGISTER(TYPE)                                    \
-  REGISTER_KERNEL_BUILDER(Name("Addons>ResamplerGrad")    \
+  REGISTER_KERNEL_FACTORY(Name("Addons>ResamplerGrad")    \
                               .Device(DEVICE_GPU)         \
                               .TypeConstraint<TYPE>("T"), \
-                          ResamplerGradOp<GPUDevice, TYPE>)
+                          ResamplerGradOpFactory<GPUDevice, TYPE>)
 
 TF_CALL_half(REGISTER);
 TF_CALL_double(REGISTER);
