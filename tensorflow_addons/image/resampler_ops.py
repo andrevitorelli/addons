@@ -61,8 +61,6 @@ def resampler(
           kernel_type = 'triangle'
         else:
           kernel_type = 'keyscubic'
-        #resampler = _resampler_so.ops.addons_resampler(data_tensor, warp_tensor, kernel_type)
-        #resampler.kernel_type = kernel_type
         return _resampler_so.ops.addons_resampler(data_tensor, warp_tensor, kernel_type)
 
 

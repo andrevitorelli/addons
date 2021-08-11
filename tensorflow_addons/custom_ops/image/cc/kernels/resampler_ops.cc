@@ -218,7 +218,6 @@ class ResamplerOpFactory: public ::tensorflow::kernel_factory::OpKernelFactory {
             context->CtxFailureWithWarning(__FILE__, __LINE__, s);
             return nullptr;
         }
-        LOG(INFO) << "ResamplerOpFactory: kernel type is " << kernel_type_str;
         tensorflow::functor::SamplingKernelType kernel_type_ = tensorflow::functor::SamplingKernelTypeFromString(kernel_type_str);
         
         OpKernel *kernel = nullptr;
@@ -300,8 +299,7 @@ struct ResamplerGrad2DFunctor<CPUDevice, kernel_functor_class, T> {
     // Creating the interpolation kernel and its 1st derivative
     auto kernel = ResamplerKernelHelper<kernel_functor_class>::createKernelFunction();
     auto kernelderivative = ResamplerKernelHelper<kernel_functor_class>::createKernelDerivativeFunction();
-    //LOG(INFO) << "ResamplerGrad2DFunctor sanity check: kernel derivative = " << kernelderivative(1.5) << " (symbolic) " << (kernel(1.525)-kernel(1.475))/(0.05) << " (finite differences).\n";
-
+    
     auto update_grads_for_batches = [&](const int start, const int limit) {
       for (int batch_id = start; batch_id < limit; ++batch_id) {
         // Utility lambdas to access data and update gradient tensors.
@@ -349,12 +347,6 @@ struct ResamplerGrad2DFunctor<CPUDevice, kernel_functor_class, T> {
             // Precompute floor (f) and ceil (c) values for x and y.
             const int fx = std::floor(static_cast<float>(x));
             const int fy = std::floor(static_cast<float>(y));
-            //const int cx = fx + 1;
-            //const int cy = fy + 1;
-            //const T dx = static_cast<T>(cx) - x;
-            //const T dy = static_cast<T>(cy) - y;
-
-            
           
             for (int chan = 0; chan < data_channels; ++chan) {
             
@@ -386,33 +378,6 @@ struct ResamplerGrad2DFunctor<CPUDevice, kernel_functor_class, T> {
               update_grad_warp(sample_id, 0, grad_output_value*ddx);
               update_grad_warp(sample_id, 1, grad_output_value*ddy);
               
-              /*const T grad_output_value =
-                  grad_output[batch_id * output_batch_stride +
-                              sample_id * data_channels + chan];
-              const T img_fxfy = get_data_point(fx, fy, chan);
-              const T img_cxcy = get_data_point(cx, cy, chan);
-              const T img_fxcy = get_data_point(fx, cy, chan);
-              const T img_cxfy = get_data_point(cx, fy, chan);
-
-              // Update partial gradients wrt relevant warp field entries
-              update_grad_warp(
-                  sample_id, 0,
-                  grad_output_value * ((one - dy) * (img_cxcy - img_fxcy) +
-                                       dy * (img_cxfy - img_fxfy)));
-
-              update_grad_warp(
-                  sample_id, 1,
-                  grad_output_value * ((one - dx) * (img_cxcy - img_cxfy) +
-                                       dx * (img_fxcy - img_fxfy)));
-
-              // Update partial gradients wrt sampled data
-              update_grad_data(fx, fy, chan, grad_output_value * dx * dy);
-              update_grad_data(cx, cy, chan,
-                               grad_output_value * (one - dx) * (one - dy));
-              update_grad_data(fx, cy, chan,
-                               grad_output_value * dx * (one - dy));
-              update_grad_data(cx, fy, chan,
-                               grad_output_value * (one - dx) * dy);*/
             }
           }
         }
@@ -505,7 +470,6 @@ class ResamplerGradOpFactory: public ::tensorflow::kernel_factory::OpKernelFacto
             context->CtxFailureWithWarning(__FILE__, __LINE__, s);
             return nullptr;
         }
-        LOG(INFO) << "ResamplerGradOpFactory: kernel type is " << kernel_type_str;
         tensorflow::functor::SamplingKernelType kernel_type_ = tensorflow::functor::SamplingKernelTypeFromString(kernel_type_str);
         
         OpKernel *kernel = nullptr;
