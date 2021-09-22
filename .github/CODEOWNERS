@@ -55,6 +55,8 @@
 /tensorflow_addons/image/tests/translate_ops_test.py @sayoojbk
 
 /tensorflow_addons/layers/adaptive_pooling.py @Susmit-A
+/tensorflow_addons/layers/crf.py @howl-anderson
+/tensorflow_addons/layers/tests/crf_test.py @howl-anderson
 /tensorflow_addons/layers/tests/adaptive_pooling_test.py @Susmit-A
 /tensorflow_addons/layers/gelu.py @aakashkumarnain
 /tensorflow_addons/layers/tests/gelu_test.py @aakashkumarnain
@@ -161,6 +163,8 @@
 /tensorflow_addons/optimizers/tests/yogi_test.py @manzilz
 /tensorflow_addons/optimizers/cocob.py @rehanguha
 /tensorflow_addons/optimizers/tests/cocob_test.py @rehanguha
+/tensorflow_addons/optimizers/adabelief.py @juntang-zhuang
+/tensorflow_addons/optimizers/tests/adabelief_test.py @juntang-zhuang
 
 /tensorflow_addons/rnn/esn_cell.py @pedrolarben
 /tensorflow_addons/rnn/tests/esn_cell_test.py @pedrolarben
@@ -175,8 +179,8 @@
 
 /tensorflow_addons/seq2seq/ @qlzh727 @guillaumekln
 
-/tensorflow_addons/text/crf.py @squadrick
-/tensorflow_addons/text/tests/crf_test.py @squadrick
+/tensorflow_addons/text/crf.py @howl-anderson
+/tensorflow_addons/text/tests/crf_test.py @howl-anderson
 /tensorflow_addons/text/parse_time_op.py @helinwang
 /tensorflow_addons/text/tests/parse_time_op_test.py @helinwang
 /tensorflow_addons/text/skip_gram_ops.py @rahulunair
