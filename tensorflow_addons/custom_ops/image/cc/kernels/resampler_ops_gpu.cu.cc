@@ -110,8 +110,8 @@ __global__ void Resampler2DKernel(const T* __restrict__ data,
 
 namespace functor {
 
-template <typename T>
-struct Resampler2DFunctor<GPUDevice, T> {
+template <typename kernel_functor_class, typename T>
+struct Resampler2DFunctor<GPUDevice, kernel_functor_class, T> {
   void operator()(OpKernelContext* ctx, const GPUDevice& d,
                   const T* __restrict__ data, const T* __restrict__ warp,
                   T* __restrict__ output, const int batch_size,
@@ -127,9 +127,15 @@ struct Resampler2DFunctor<GPUDevice, T> {
   }
 };
 
-template struct Resampler2DFunctor<GPUDevice, Eigen::half>;
-template struct Resampler2DFunctor<GPUDevice, float>;
-template struct Resampler2DFunctor<GPUDevice, double>;
+
+// FIXME: Move factory code to common header so this can be removed
+template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::TriangleKernelFunc, Eigen::half>;
+template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::TriangleKernelFunc, float>;
+template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::TriangleKernelFunc, double>;
+template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::KeysCubicKernelFunc, Eigen::half>;
+template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::KeysCubicKernelFunc, float>;
+template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::KeysCubicKernelFunc, double>;
+
 
 }  // namespace functor
 
@@ -238,8 +244,8 @@ __global__ void ResamplerGrad2DKernel(
 
 namespace functor {
 
-template <typename T>
-struct ResamplerGrad2DFunctor<GPUDevice, T> {
+template <typename kernel_functor_class, typename T>
+struct ResamplerGrad2DFunctor<GPUDevice, kernel_functor_class, T> {
   void operator()(OpKernelContext* ctx, const GPUDevice& d,
                   const T* __restrict__ data, const T* __restrict__ warp,
                   const T* __restrict__ grad_output, T* __restrict__ grad_data,
@@ -273,9 +279,13 @@ struct ResamplerGrad2DFunctor<GPUDevice, T> {
   }
 };
 
-template struct ResamplerGrad2DFunctor<GPUDevice, Eigen::half>;
-template struct ResamplerGrad2DFunctor<GPUDevice, float>;
-template struct ResamplerGrad2DFunctor<GPUDevice, double>;
+template struct ResamplerGrad2DFunctor<GPUDevice, tensorflow::functor::TriangleKernelFunc, Eigen::half>;
+template struct ResamplerGrad2DFunctor<GPUDevice, tensorflow::functor::TriangleKernelFunc, float>;
+template struct ResamplerGrad2DFunctor<GPUDevice, tensorflow::functor::TriangleKernelFunc, double>;
+template struct ResamplerGrad2DFunctor<GPUDevice, tensorflow::functor::KeysCubicKernelFunc, Eigen::half>;
+template struct ResamplerGrad2DFunctor<GPUDevice, tensorflow::functor::KeysCubicKernelFunc, float>;
+template struct ResamplerGrad2DFunctor<GPUDevice, tensorflow::functor::KeysCubicKernelFunc, double>;
+
 
 }  // namespace functor
 }  // namespace addons
