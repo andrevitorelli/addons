@@ -25,6 +25,7 @@
 #include "tensorflow/core/util/gpu_device_functions.h"
 #include "tensorflow/core/util/gpu_kernel_helper.h"
 #include "tensorflow_addons/custom_ops/image/cc/kernels/resampler_ops.h"
+#include "tensorflow_addons/custom_ops/image/cc/kernels/sampling_functions.h"
 
 namespace tensorflow {
 namespace addons {
@@ -37,7 +38,7 @@ namespace {
   data[batch_id * data_batch_stride + data_channels * (y * data_width + x) + \
        chan]
 
-template <typename T>
+template <typename kernel_functor_class, typename T>
 __global__ void Resampler2DKernel(const T* __restrict__ data,
                                   const T* __restrict__ warp,
                                   T* __restrict__ output, const int batch_size,
@@ -45,6 +46,9 @@ __global__ void Resampler2DKernel(const T* __restrict__ data,
                                   const int data_channels,
                                   const int num_sampling_points) {
   const int output_data_size = batch_size * num_sampling_points * data_channels;
+  // Creating the interpolation kernel
+  //auto kernel = ResamplerKernelHelper<kernel_functor_class>::createKernelFunction();
+  using kernel = ResamplerKernelHelper<kernel_functor_class, float>;
   GPU_1D_KERNEL_LOOP(index, output_data_size) {
     const int out_index = index;
 
@@ -66,7 +70,7 @@ __global__ void Resampler2DKernel(const T* __restrict__ data,
     const T x = warp[batch_id * warp_batch_stride + sample_id * 2];
     const T y = warp[batch_id * warp_batch_stride + sample_id * 2 + 1];
     const T zero = static_cast<T>(0.0);
-    const T one = static_cast<T>(1.0);
+    //const T one = static_cast<T>(1.0);
     // The interpolation function:
     // a) implicitly pads the input data with 0s (hence the unusual checks
     // with {x,y} > -1)
@@ -79,27 +83,22 @@ __global__ void Resampler2DKernel(const T* __restrict__ data,
       // Precompute floor (f) and ceil (c) values for x and y.
       const int fx = std::floor(static_cast<float>(x));
       const int fy = std::floor(static_cast<float>(y));
-      const int cx = fx + 1;
-      const int cy = fy + 1;
-      const T dx = static_cast<T>(cx) - x;
-      const T dy = static_cast<T>(cy) - y;
 
-      const T img_fxfy =
-          (fx >= 0 && fy >= 0) ? dx * dy * GET_DATA_POINT(fx, fy) : zero;
-
-      const T img_cxcy = (cx <= data_width - 1 && cy <= data_height - 1)
-                             ? (one - dx) * (one - dy) * GET_DATA_POINT(cx, cy)
-                             : zero;
-
-      const T img_fxcy = (fx >= 0 && cy <= data_height - 1)
-                             ? dx * (one - dy) * GET_DATA_POINT(fx, cy)
-                             : zero;
-
-      const T img_cxfy = (cx <= data_width - 1 && fy >= 0)
-                             ? (one - dx) * dy * GET_DATA_POINT(cx, fy)
-                             : zero;
-
-      output[out_index] = img_fxfy + img_cxcy + img_fxcy + img_cxfy;
+      const int span_size = static_cast<int>(std::ceil(kernel::radius()));
+      T res = zero;
+      for(int inx=-span_size; inx <= span_size; inx++){
+        for(int iny=-span_size; iny <= span_size; iny++){
+          const int sx = fx + inx; // Sampled coordinate
+          const int sy = fy + iny;
+          const float dx = static_cast<float>(sx) - static_cast<float>(x);
+          const float dy = static_cast<float>(sy) - static_cast<float>(y);
+          if(sx>=0 && sy>=0 && sx<data_width && sy < data_height)
+            res += GET_DATA_POINT(sx, sy) * static_cast<T>(kernel::value(dx) * kernel::value(dy));
+        }
+      }
+      output[out_index] = res;
+       //set_output(sample_id, chan, res);
+       //output[out_index] = img_fxfy + img_cxcy + img_fxcy + img_cxfy;
     } else {
       output[out_index] = zero;
     }
@@ -121,7 +120,7 @@ struct Resampler2DFunctor<GPUDevice, kernel_functor_class, T> {
         batch_size * num_sampling_points * data_channels;
     GpuLaunchConfig config = GetGpuLaunchConfig(output_data_size, d);
     TF_CHECK_OK(GpuLaunchKernel(
-        Resampler2DKernel<T>, config.block_count, config.thread_per_block, 0,
+        Resampler2DKernel<kernel_functor_class, T>, config.block_count, config.thread_per_block, 0,
         d.stream(), data, warp, output, batch_size, data_height, data_width,
         data_channels, num_sampling_points));
   }
@@ -146,7 +145,7 @@ namespace {
                             data_channels * (y * data_width + x) + chan), \
                v)
 
-template <typename T>
+template <typename kernel_functor_class, typename T>
 __global__ void ResamplerGrad2DKernel(
     const T* __restrict__ data, const T* __restrict__ warp,
     const T* __restrict__ grad_output, T* __restrict__ grad_data,
@@ -155,6 +154,7 @@ __global__ void ResamplerGrad2DKernel(
     const int num_sampling_points) {
   const int resampler_output_size =
       batch_size * num_sampling_points * data_channels;
+  using kernel = ResamplerKernelHelper<kernel_functor_class, float>;
   GPU_1D_KERNEL_LOOP(index, resampler_output_size) {
     const int out_index = index;
 
@@ -178,7 +178,7 @@ __global__ void ResamplerGrad2DKernel(
     const T x = warp[warp_id_x];
     const T y = warp[warp_id_y];
     const T zero = static_cast<T>(0.0);
-    const T one = static_cast<T>(1.0);
+    //const T one = static_cast<T>(1.0);
 
     // Get grad output
     const T grad_output_value = grad_output[out_index];
@@ -194,6 +194,35 @@ __global__ void ResamplerGrad2DKernel(
       // Precompute floor (f) and ceil (c) values for x and y.
       const int fx = std::floor(static_cast<float>(x));
       const int fy = std::floor(static_cast<float>(y));
+
+      T ddx = zero; // Accumulator for warp derivative (x component)
+      T ddy = zero; // Accumulator for warp derivative (y component)
+
+      const int span_size = static_cast<int>(std::ceil(kernel::radius()));
+      for(int inx=-span_size; inx <= span_size; inx++){
+        for(int iny=-span_size; iny <= span_size; iny++){
+                const int sx = fx + inx;
+                const int sy = fy + iny;
+                const float dx = static_cast<float>(sx) - static_cast<float>(x);
+                const float dy = static_cast<float>(sy) - static_cast<float>(y);
+                if(sx >= 0 && sy >= 0 && sx < data_width && sy < data_height) {
+                    auto val = GET_DATA_POINT(sx, sy);
+
+                    auto kernel_x = kernel::value(dx);
+                    auto kernel_y = kernel::value(dy);
+                    ddx -= val * static_cast<T>(kernel::derivative(dx) * kernel_y);
+                    ddy -= val * static_cast<T>(kernel::derivative(dy) * kernel_x);
+
+                    // Update partial gradients wrt sampled data
+                    UPDATE_GRAD_DATA_POINT(sx, sy, static_cast<T>(grad_output_value * kernel_x * kernel_y));
+                }
+            }
+      }
+      // Update partial gradients wrt relevant warp field entries
+      GpuAtomicAdd(grad_warp + warp_id_x,  static_cast<T>(grad_output_value * ddx));
+      GpuAtomicAdd(grad_warp + warp_id_y,  static_cast<T>(grad_output_value * ddy));
+
+      /*
       const int cx = fx + 1;
       const int cy = fy + 1;
       const T dx = static_cast<T>(cx) - x;
@@ -232,7 +261,7 @@ __global__ void ResamplerGrad2DKernel(
       }
       if (cx <= data_width - 1 && fy >= 0) {
         UPDATE_GRAD_DATA_POINT(cx, fy, grad_output_value * (one - dx) * dy);
-      }
+      }*/
     }
   }
 }
@@ -271,7 +300,7 @@ struct ResamplerGrad2DFunctor<GPUDevice, kernel_functor_class, T> {
     const int resampler_output_size =
         batch_size * num_sampling_points * data_channels;
     config = GetGpuLaunchConfig(resampler_output_size, d);
-    TF_CHECK_OK(GpuLaunchKernel(ResamplerGrad2DKernel<T>, config.block_count,
+    TF_CHECK_OK(GpuLaunchKernel(ResamplerGrad2DKernel<kernel_functor_class, T>, config.block_count,
                                 config.thread_per_block, 0, d.stream(), data,
                                 warp, grad_output, grad_data, grad_warp,
                                 batch_size, data_height, data_width,
