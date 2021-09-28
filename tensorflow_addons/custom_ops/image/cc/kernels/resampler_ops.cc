@@ -16,6 +16,7 @@
 #define EIGEN_USE_THREADS
 
 #include "tensorflow_addons/custom_ops/image/cc/kernels/resampler_ops.h"
+#include "tensorflow_addons/custom_ops/image/cc/kernels/sampling_functions.h"
 
 #include <algorithm>
 #include <cmath>
@@ -70,10 +71,11 @@ struct Resampler2DFunctor<CPUDevice, kernel_functor_class, T> {
     const int data_batch_stride = data_height * data_width * data_channels;
     const int output_batch_stride = num_sampling_points * data_channels;
     const T zero = static_cast<T>(0.0);
-    const T one = static_cast<T>(1.0);
+    //const T one = static_cast<T>(1.0);
 
+    using kernel = ResamplerKernelHelper<kernel_functor_class, float>;
     // Creating the interpolation kernel
-    auto kernel = ResamplerKernelHelper<kernel_functor_class>::createKernelFunction();
+    //auto kernel = ResamplerKernelHelper<kernel_functor_class>::createKernelFunction();
 
     auto resample_batches = [&](const int start, const int limit) {
       for (int batch_id = start; batch_id < limit; ++batch_id) {
@@ -114,7 +116,8 @@ struct Resampler2DFunctor<CPUDevice, kernel_functor_class, T> {
             const int fx = std::floor(static_cast<float>(x));
             const int fy = std::floor(static_cast<float>(y));
 
-            const int span_size = static_cast<int>(std::ceil(kernel.Radius()));
+            const int span_size =
+              static_cast<int>(std::ceil(kernel::radius()));
             for (int chan = 0; chan < data_channels; ++chan) {
               T res = zero;
 
@@ -124,7 +127,7 @@ struct Resampler2DFunctor<CPUDevice, kernel_functor_class, T> {
                   const int cy = fy + iny;
                   const float dx = static_cast<float>(cx) - static_cast<float>(x);
                   const float dy = static_cast<float>(cy) - static_cast<float>(y);
-                  res += get_data_point(cx, cy, chan) * static_cast<T>(kernel(dx) * kernel(dy));
+                  res += get_data_point(cx, cy, chan) * static_cast<T>(kernel::value(dx) * kernel::value(dy));
                 }
               }
               set_output(sample_id, chan, res);
@@ -294,11 +297,12 @@ struct ResamplerGrad2DFunctor<CPUDevice, kernel_functor_class, T> {
     const auto&& warp_batch_stride = num_sampling_points * 2;
     const int output_batch_stride = num_sampling_points * data_channels;
     const T zero = static_cast<T>(0.0);
-    const T one = static_cast<T>(1.0);
+    //const T one = static_cast<T>(1.0);
     
+    using kernel = ResamplerKernelHelper<kernel_functor_class, float>;
     // Creating the interpolation kernel and its 1st derivative
-    auto kernel = ResamplerKernelHelper<kernel_functor_class>::createKernelFunction();
-    auto kernelderivative = ResamplerKernelHelper<kernel_functor_class>::createKernelDerivativeFunction();
+    //auto kernel = ResamplerKernelHelper<kernel_functor_class>::createKernelFunction();
+    //auto kernelderivative = ResamplerKernelHelper<kernel_functor_class>::createKernelDerivativeFunction();
     
     auto update_grads_for_batches = [&](const int start, const int limit) {
       for (int batch_id = start; batch_id < limit; ++batch_id) {
@@ -355,7 +359,7 @@ struct ResamplerGrad2DFunctor<CPUDevice, kernel_functor_class, T> {
                               sample_id * data_channels + chan];
               T ddx = zero; // Accumulator for warp derivative (x component)
               T ddy = zero; // Accumulator for warp derivative (y component)
-              const int span_size = static_cast<int>(std::ceil(kernel.Radius()));
+              const int span_size = static_cast<int>(std::ceil(kernel::radius()));
               for(int inx=-span_size; inx <= span_size; inx++){
                 for(int iny=-span_size; iny <= span_size; iny++){        
                   const int cx = fx + inx;
@@ -364,11 +368,11 @@ struct ResamplerGrad2DFunctor<CPUDevice, kernel_functor_class, T> {
                   const float dy = static_cast<float>(cy) - static_cast<float>(y);
                   auto val = get_data_point(cx, cy, chan);
                   
-                  auto kernel_x = kernel(dx);
-                  auto kernel_y = kernel(dy);
+                  auto kernel_x = kernel::value(dx);
+                  auto kernel_y = kernel::value(dy);
                   
-                  ddx -= val * static_cast<T>(kernelderivative(dx) * kernel_y);
-                  ddy -= val * static_cast<T>(kernelderivative(dy) * kernel_x);
+                  ddx -= val * static_cast<T>(kernel::derivative(dx) * kernel_y);
+                  ddy -= val * static_cast<T>(kernel::derivative(dy) * kernel_x);
                   
                   // Update partial gradients wrt sampled data
                   update_grad_data(cx, cy, chan, grad_output_value*static_cast<T>(kernel_x*kernel_y));
