@@ -219,8 +219,10 @@ __global__ void ResamplerGrad2DKernel(
             }
       }
       // Update partial gradients wrt relevant warp field entries
-      GpuAtomicAdd(grad_warp + warp_id_x,  static_cast<T>(grad_output_value * ddx));
-      GpuAtomicAdd(grad_warp + warp_id_y,  static_cast<T>(grad_output_value * ddy));
+      *(grad_warp + warp_id_x) +=  static_cast<T>(grad_output_value * ddx);
+      *(grad_warp + warp_id_y) +=  static_cast<T>(grad_output_value * ddy);
+      //GpuAtomicAdd(grad_warp + warp_id_x,  static_cast<T>(grad_output_value * ddx));
+      //GpuAtomicAdd(grad_warp + warp_id_y,  static_cast<T>(grad_output_value * ddy));
 
       /*
       const int cx = fx + 1;
