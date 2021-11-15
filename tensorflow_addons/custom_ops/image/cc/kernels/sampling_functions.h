@@ -34,25 +34,6 @@ public:
         return 0.0;
     }
     UNIAPI static T radius()  { return static_cast<T>(1.f); }
-    /*
-    // 1st derivative of TriangleKernelFunc
-    struct TriangleKernelDerivativeFunc {
-        // Strictly speaking, Triangle Kernel is non-differentiable on -1, 0 and 1
-        float operator()(float x) const {
-            if(x<-1.0)
-                return 0;
-            if(x<0.0)
-                return 1.0;
-            if(x<1.0)
-                return -1.0;
-            return 0.0;
-        }
-        float Radius() const { return 1.f; }
-    };
-
-    static inline TriangleKernelDerivativeFunc createKernelDerivativeFunction() {
-        return TriangleKernelDerivativeFunc();
-    }*/
 };
 
 template <typename T>
@@ -83,37 +64,45 @@ public:
         return 0.0;
     }
     UNIAPI static T radius() { return static_cast<T>(2.f); }
-    /*
-    typedef  tensorflow::functor::KeysCubicKernelFunc kernelFunc;
-    static inline kernelFunc createKernelFunction() {
-        return tensorflow::functor::CreateKeysCubicKernel();
+};
+
+template <typename T>
+class ResamplerKernelHelper<ResamplingKernelType::BernsteinQuintic, T> {
+// Bernstein, Gary M. and Gruen, Daniel, "Resampling images in Fourier domain"
+public:
+    UNIAPI static T value(T x) {
+        x = std::abs(x);
+        // The Compiler should be able to optimize the comparison sequence
+        if (x <=1.0f) {
+            return (((-55.0f*x + 138.0f)*x - 95.0f)*x*x*x + 12.0f)/12.0f;
+        } else if (x <=2.0f) {
+            return (((((55.0f*x - 414.0f)*x + 1205.0f)*x - 1680.0f)*x + 1110)*x - 276.0f)/24.0f;
+        } else if (x <= 3.0f) {
+            return (((((-11.0f*x + 138.0f)*x - 685.0f)*x + 1680.0f)*x - 2034.0f)*x + 972.0f)/24.0f;
+        } else {
+            return 0.0f;
+        }
     }
 
-    struct KeysCubicKernelDerivativeFunc {
-        // http://ieeexplore.ieee.org/document/1163711/
-        // R. G. Keys. Cubic convolution interpolation for digital image
-        // processing. IEEE Transactions on Acoustics, Speech, and Signal
-        // Processing, 29(6):1153–1160, 1981.
-        float operator()(float x) const {
-            if(x<-2.0) {
-                return 0.0;
-            } else if (x<-1.0) {
-                return (1.5f * x + 5.0f) * x + 4.0f;
-            } else if(x<0.0) {
-                return (-4.5f * x - 5.0f) * x;
-            } else if(x<1.0) {
-                return (4.5f * x - 5.0f) * x;
-            } else if(x<2.0) {
-                return (-1.5f * x + 5.0f) * x - 4.0f;
-            }
-            return 0.0;
-        }
-        float Radius() const { return 2.f; }
-    };
-
-    static inline KeysCubicKernelDerivativeFunc createKernelDerivativeFunction() {
-        return KeysCubicKernelDerivativeFunc();
-    }*/
+    UNIAPI static T derivative(T x) {
+        bool neg = std::signbit(x);
+        x = std::abs(x);
+        T ret;
+        if (x <=1.0f) {
+            ret = ((-275.0f*x + 552.0f)*x - 285.0f)*x*x/12.0f;
+        } else if (x <=2.0f) {
+            ret = ((((275.0f*x - 1656.0f)*x + 3615.0f)*x - 3360.0f)*x + 1110)/24.0f;
+        } else if (x <= 3.0f) {
+            return ((((-55.0f*x + 552.0f)*x - 2055.0f)*x +3360.0f)*x - 2034.0f)/24.0f;
+        } else {
+            ret = 0.0f;
+        };
+        if (neg)
+              return -ret;
+        else
+              return ret;
+    }
+    UNIAPI static T radius() { return static_cast<T>(3.0f); }
 };
 
 }  // end namespace functor
