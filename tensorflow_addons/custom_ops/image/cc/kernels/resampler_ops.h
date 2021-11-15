@@ -27,12 +27,18 @@
 #include "tensorflow/core/lib/core/stringpiece.h"
 #include "tensorflow/core/lib/strings/str_util.h"
 
+
 namespace tensorflow {
 namespace addons {
+
+enum class ResamplingKernelType {
+      Triangle=0, KeysCubic, BernsteinQuintic, Unknown
+};
+
 namespace functor {
 
 // Helper functor for the Resampler Op in 2D
-template <typename Device, typename kernel_functor_class, typename T>
+template <typename Device, ResamplingKernelType kernel_functor_class, typename T>
 struct Resampler2DFunctor {
   void operator()(OpKernelContext* ctx, const Device& d,
                   const T* __restrict__ data, const T* __restrict__ warp,
@@ -42,7 +48,7 @@ struct Resampler2DFunctor {
 };
 
 // Helper functor for the Resampler Gradient Op in 2D
-template <typename Device, typename kernel_functor_class, typename T>
+template <typename Device, ResamplingKernelType kernel_functor_class, typename T>
 struct ResamplerGrad2DFunctor {
   void operator()(OpKernelContext* ctx, const Device& d,
                   const T* __restrict__ data, const T* __restrict__ warp,

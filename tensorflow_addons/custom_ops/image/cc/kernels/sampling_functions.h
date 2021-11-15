@@ -8,12 +8,16 @@
 #endif
 
 
-template <typename kernel_class, typename T>
+namespace tensorflow {
+namespace addons {
+namespace functor {
+
+template <ResamplingKernelType kernel_class, typename T>
 class ResamplerKernelHelper {
 };
 
 template <typename T>
-class ResamplerKernelHelper<tensorflow::functor::TriangleKernelFunc, T> {
+class ResamplerKernelHelper<ResamplingKernelType::Triangle, T> {
 public:
     UNIAPI static T value(T x) {
         x = std::abs(x);
@@ -52,7 +56,7 @@ public:
 };
 
 template <typename T>
-class ResamplerKernelHelper< tensorflow::functor::KeysCubicKernelFunc, T> {
+class ResamplerKernelHelper<ResamplingKernelType::KeysCubic, T> {
 public:
     UNIAPI static T value(T x) {
         x = std::abs(x);
@@ -111,5 +115,9 @@ public:
         return KeysCubicKernelDerivativeFunc();
     }*/
 };
+
+}  // end namespace functor
+}  // end namespace addons
+}  // namespace tensorflow
 
 #endif  // SAMPLING_FUNCTIONS_H_
