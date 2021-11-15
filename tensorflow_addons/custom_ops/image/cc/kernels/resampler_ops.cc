@@ -225,6 +225,10 @@ class ResamplerOpFactory: public ::tensorflow::kernel_factory::OpKernelFactory {
             case ResamplingKernelType::KeysCubic:
                 kernel = new ResamplerOp<Device, ResamplingKernelType::KeysCubic, T>(context);
                 break;
+
+            case ResamplingKernelType::BernsteinQuintic:
+                kernel = new ResamplerOp<Device, ResamplingKernelType::BernsteinQuintic, T>(context);
+                break;
                 
             case ResamplingKernelType::Unknown:
                 context->CtxFailure(__FILE__, __LINE__,  
@@ -477,6 +481,10 @@ class ResamplerGradOpFactory: public ::tensorflow::kernel_factory::OpKernelFacto
             
             case ResamplingKernelType::KeysCubic:
                 kernel = new ResamplerGradOp<Device, ResamplingKernelType::KeysCubic, T>(context);
+                break;
+
+            case ResamplingKernelType::BernsteinQuintic:
+                kernel = new ResamplerGradOp<Device, ResamplingKernelType::BernsteinQuintic, T>(context);
                 break;
                 
             case ResamplingKernelType::Unknown:

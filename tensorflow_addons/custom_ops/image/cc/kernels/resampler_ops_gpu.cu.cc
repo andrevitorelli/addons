@@ -126,7 +126,6 @@ struct Resampler2DFunctor<GPUDevice, kernel_functor_class, T> {
   }
 };
 
-
 // FIXME: Move factory code to common header so this can be removed
 template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::Triangle, Eigen::half>;
 template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::Triangle, float>;
@@ -134,6 +133,9 @@ template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::Triangle, do
 template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, Eigen::half>;
 template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, float>;
 template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, double>;
+template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::BernsteinQuintic, Eigen::half>;
+template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::BernsteinQuintic, float>;
+template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::BernsteinQuintic, double>;
 
 
 }  // namespace functor
@@ -316,6 +318,9 @@ template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::Triangle
 template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, Eigen::half>;
 template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, float>;
 template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, double>;
+template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::BernsteinQuintic, Eigen::half>;
+template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::BernsteinQuintic, float>;
+template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::BernsteinQuintic, double>;
 
 
 }  // namespace functor
