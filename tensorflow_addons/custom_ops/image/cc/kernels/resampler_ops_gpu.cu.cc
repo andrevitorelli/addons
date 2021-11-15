@@ -38,7 +38,7 @@ namespace {
   data[batch_id * data_batch_stride + data_channels * (y * data_width + x) + \
        chan]
 
-template <typename kernel_functor_class, typename T>
+template <ResamplingKernelType kernel_functor_class, typename T>
 __global__ void Resampler2DKernel(const T* __restrict__ data,
                                   const T* __restrict__ warp,
                                   T* __restrict__ output, const int batch_size,
@@ -48,7 +48,7 @@ __global__ void Resampler2DKernel(const T* __restrict__ data,
   const int output_data_size = batch_size * num_sampling_points * data_channels;
   // Creating the interpolation kernel
   //auto kernel = ResamplerKernelHelper<kernel_functor_class>::createKernelFunction();
-  using kernel = ResamplerKernelHelper<kernel_functor_class, float>;
+  using kernel = tensorflow::addons::functor::ResamplerKernelHelper<kernel_functor_class, float>;
   GPU_1D_KERNEL_LOOP(index, output_data_size) {
     const int out_index = index;
 
@@ -109,7 +109,7 @@ __global__ void Resampler2DKernel(const T* __restrict__ data,
 
 namespace functor {
 
-template <typename kernel_functor_class, typename T>
+template <ResamplingKernelType kernel_functor_class, typename T>
 struct Resampler2DFunctor<GPUDevice, kernel_functor_class, T> {
   void operator()(OpKernelContext* ctx, const GPUDevice& d,
                   const T* __restrict__ data, const T* __restrict__ warp,
@@ -128,12 +128,12 @@ struct Resampler2DFunctor<GPUDevice, kernel_functor_class, T> {
 
 
 // FIXME: Move factory code to common header so this can be removed
-template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::TriangleKernelFunc, Eigen::half>;
-template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::TriangleKernelFunc, float>;
-template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::TriangleKernelFunc, double>;
-template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::KeysCubicKernelFunc, Eigen::half>;
-template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::KeysCubicKernelFunc, float>;
-template struct Resampler2DFunctor<GPUDevice, tensorflow::functor::KeysCubicKernelFunc, double>;
+template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::Triangle, Eigen::half>;
+template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::Triangle, float>;
+template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::Triangle, double>;
+template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, Eigen::half>;
+template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, float>;
+template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, double>;
 
 
 }  // namespace functor
@@ -145,7 +145,7 @@ namespace {
                             data_channels * (y * data_width + x) + chan), \
                v)
 
-template <typename kernel_functor_class, typename T>
+template <ResamplingKernelType kernel_functor_class, typename T>
 __global__ void ResamplerGrad2DKernel(
     const T* __restrict__ data, const T* __restrict__ warp,
     const T* __restrict__ grad_output, T* __restrict__ grad_data,
@@ -154,7 +154,7 @@ __global__ void ResamplerGrad2DKernel(
     const int num_sampling_points) {
   const int resampler_output_size =
       batch_size * num_sampling_points * data_channels;
-  using kernel = ResamplerKernelHelper<kernel_functor_class, float>;
+  using kernel = tensorflow::addons::functor::ResamplerKernelHelper<kernel_functor_class, float>;
   GPU_1D_KERNEL_LOOP(index, resampler_output_size) {
     const int out_index = index;
 
@@ -275,7 +275,7 @@ __global__ void ResamplerGrad2DKernel(
 
 namespace functor {
 
-template <typename kernel_functor_class, typename T>
+template <ResamplingKernelType kernel_functor_class, typename T>
 struct ResamplerGrad2DFunctor<GPUDevice, kernel_functor_class, T> {
   void operator()(OpKernelContext* ctx, const GPUDevice& d,
                   const T* __restrict__ data, const T* __restrict__ warp,
@@ -310,12 +310,12 @@ struct ResamplerGrad2DFunctor<GPUDevice, kernel_functor_class, T> {
   }
 };
 
-template struct ResamplerGrad2DFunctor<GPUDevice, tensorflow::functor::TriangleKernelFunc, Eigen::half>;
-template struct ResamplerGrad2DFunctor<GPUDevice, tensorflow::functor::TriangleKernelFunc, float>;
-template struct ResamplerGrad2DFunctor<GPUDevice, tensorflow::functor::TriangleKernelFunc, double>;
-template struct ResamplerGrad2DFunctor<GPUDevice, tensorflow::functor::KeysCubicKernelFunc, Eigen::half>;
-template struct ResamplerGrad2DFunctor<GPUDevice, tensorflow::functor::KeysCubicKernelFunc, float>;
-template struct ResamplerGrad2DFunctor<GPUDevice, tensorflow::functor::KeysCubicKernelFunc, double>;
+template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::Triangle, Eigen::half>;
+template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::Triangle, float>;
+template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::Triangle, double>;
+template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, Eigen::half>;
+template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, float>;
+template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, double>;
 
 
 }  // namespace functor

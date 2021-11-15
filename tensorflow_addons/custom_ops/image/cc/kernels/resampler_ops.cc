@@ -29,25 +29,6 @@
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/util/work_sharder.h"
 
-namespace tensorflow {
-namespace functor {
-
-SamplingKernelType SamplingKernelTypeFromString(const StringPiece str) {
-  const string lower_case = absl::AsciiStrToLower(str);
-  if (lower_case == "lanczos1") return Lanczos1Kernel;
-  if (lower_case == "lanczos3") return Lanczos3Kernel;
-  if (lower_case == "lanczos5") return Lanczos5Kernel;
-  if (lower_case == "gaussian") return GaussianKernel;
-  if (lower_case == "box") return BoxKernel;
-  if (lower_case == "triangle") return TriangleKernel;
-  if (lower_case == "keyscubic") return KeysCubicKernel;
-  if (lower_case == "mitchellcubic") return MitchellCubicKernel;
-  return SamplingKernelTypeEnd;
-}
-
-}  // namespace functor
-}  // namespace tensorflow
-
 
 
 namespace tensorflow {
@@ -57,10 +38,21 @@ namespace addons {
 using CPUDevice = Eigen::ThreadPoolDevice;
 using GPUDevice = Eigen::GpuDevice;
 
+ResamplingKernelType Str2SamplingKernelType(const StringPiece str) {
+  const string lower_case = absl::AsciiStrToLower(str);
+  if (lower_case == "triangle") return ResamplingKernelType::Triangle;
+  if (lower_case == "keyscubic") return ResamplingKernelType::KeysCubic;
+  if (lower_case == "bernsteinquintic") return ResamplingKernelType::BernsteinQuintic;
+  return ResamplingKernelType::Unknown;
+}
+
+
 
 namespace functor {
 
-template <typename kernel_functor_class, typename T>
+
+
+template <ResamplingKernelType kernel_functor_class, typename T>
 struct Resampler2DFunctor<CPUDevice, kernel_functor_class, T> {
   void operator()(OpKernelContext* ctx, const CPUDevice& d,
                   const T* __restrict__ data, const T* __restrict__ warp,
@@ -156,7 +148,7 @@ struct Resampler2DFunctor<CPUDevice, kernel_functor_class, T> {
 
 }  // namespace functor
 
-template <typename Device, typename kernel_functor_class, typename T>
+template <typename Device, ResamplingKernelType kernel_functor_class, typename T>
 class ResamplerOp : public OpKernel {
  public:
   explicit ResamplerOp(OpKernelConstruction* context) : OpKernel(context) {}
@@ -221,20 +213,20 @@ class ResamplerOpFactory: public ::tensorflow::kernel_factory::OpKernelFactory {
             context->CtxFailureWithWarning(__FILE__, __LINE__, s);
             return nullptr;
         }
-        tensorflow::functor::SamplingKernelType kernel_type_ = tensorflow::functor::SamplingKernelTypeFromString(kernel_type_str);
+        ResamplingKernelType kernel_type_ = Str2SamplingKernelType(kernel_type_str);
         
         OpKernel *kernel = nullptr;
         
         switch(kernel_type_) {
-            case tensorflow::functor::TriangleKernel:
-                kernel =  new ResamplerOp<Device, tensorflow::functor::TriangleKernelFunc, T>(context);
+            case ResamplingKernelType::Triangle:
+                kernel =  new ResamplerOp<Device, ResamplingKernelType::Triangle, T>(context);
                 break;
             
-            case tensorflow::functor::KeysCubicKernel:
-                kernel = new ResamplerOp<Device, tensorflow::functor::KeysCubicKernelFunc, T>(context);
+            case ResamplingKernelType::KeysCubic:
+                kernel = new ResamplerOp<Device, ResamplingKernelType::KeysCubic, T>(context);
                 break;
                 
-            case tensorflow::functor::SamplingKernelTypeEnd:
+            case ResamplingKernelType::Unknown:
                 context->CtxFailure(__FILE__, __LINE__,  
                     errors::InvalidArgument("Unrecognized kernel type: " + kernel_type_str));
                 break;
@@ -275,7 +267,7 @@ TF_CALL_double(REGISTER);
 
 namespace functor {
 
-template <typename kernel_functor_class, typename T>
+template <ResamplingKernelType kernel_functor_class, typename T>
 struct ResamplerGrad2DFunctor<CPUDevice, kernel_functor_class, T> {
   void operator()(OpKernelContext* ctx, const CPUDevice& d,
                   const T* __restrict__ data, const T* __restrict__ warp,
@@ -403,9 +395,8 @@ struct ResamplerGrad2DFunctor<CPUDevice, kernel_functor_class, T> {
 
 }  // namespace functor
 
-template <typename Device, typename kernel_functor_class, typename T>
+template <typename Device, ResamplingKernelType kernel_functor_class, typename T>
 class ResamplerGradOp : public OpKernel {
-  tensorflow::functor::SamplingKernelType kernel_type_; 
  public:
   explicit ResamplerGradOp(OpKernelConstruction* context) : OpKernel(context) {}
 
@@ -474,20 +465,21 @@ class ResamplerGradOpFactory: public ::tensorflow::kernel_factory::OpKernelFacto
             context->CtxFailureWithWarning(__FILE__, __LINE__, s);
             return nullptr;
         }
-        tensorflow::functor::SamplingKernelType kernel_type_ = tensorflow::functor::SamplingKernelTypeFromString(kernel_type_str);
+
+        ResamplingKernelType kernel_type_ = Str2SamplingKernelType(kernel_type_str);
         
         OpKernel *kernel = nullptr;
         
         switch(kernel_type_) {
-            case tensorflow::functor::TriangleKernel:
-                kernel =  new ResamplerGradOp<Device, tensorflow::functor::TriangleKernelFunc, T>(context);
+              case ResamplingKernelType::Triangle:
+                kernel =  new ResamplerGradOp<Device, ResamplingKernelType::Triangle, T>(context);
                 break;
             
-            case tensorflow::functor::KeysCubicKernel:
-                kernel = new ResamplerGradOp<Device, tensorflow::functor::KeysCubicKernelFunc, T>(context);
+            case ResamplingKernelType::KeysCubic:
+                kernel = new ResamplerGradOp<Device, ResamplingKernelType::KeysCubic, T>(context);
                 break;
                 
-            case tensorflow::functor::SamplingKernelTypeEnd:
+            case ResamplingKernelType::Unknown:
                 context->CtxFailure(__FILE__, __LINE__,  
                     errors::InvalidArgument("Unrecognized kernel type: " + kernel_type_str));
                 break;
