@@ -58,10 +58,8 @@ def resampler(
         data_tensor = tf.convert_to_tensor(data, name="data")
         warp_tensor = tf.convert_to_tensor(warp, name="warp")
         if method == tf.image.ResizeMethod.BILINEAR:
-          kernel_type = 'triangle'
-        else:
-          kernel_type = 'keyscubic'
-        return _resampler_so.ops.addons_resampler(data_tensor, warp_tensor, kernel_type)
+            method = 'triangle'
+        return _resampler_so.ops.addons_resampler(data_tensor, warp_tensor, method)
 
 
 @tf.RegisterGradient("Addons>Resampler")
