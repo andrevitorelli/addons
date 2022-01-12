@@ -81,8 +81,8 @@ __global__ void Resampler2DKernel(const T* __restrict__ data,
     if (x > static_cast<T>(-1.0) && y > static_cast<T>(-1.0) &&
         x < static_cast<T>(data_width) && y < static_cast<T>(data_height)) {
       // Precompute floor (f) and ceil (c) values for x and y.
-      const int fx = std::floor(static_cast<float>(x));
-      const int fy = std::floor(static_cast<float>(y));
+      const int fx = std::floor(static_cast<T>(x));
+      const int fy = std::floor(static_cast<T>(y));
 
       const int span_size = static_cast<int>(std::ceil(kernel::radius()));
       T res = zero;
@@ -90,8 +90,8 @@ __global__ void Resampler2DKernel(const T* __restrict__ data,
         for(int iny=-span_size; iny <= span_size; iny++){
           const int sx = fx + inx; // Sampled coordinate
           const int sy = fy + iny;
-          const float dx = static_cast<float>(sx) - static_cast<float>(x);
-          const float dy = static_cast<float>(sy) - static_cast<float>(y);
+          const T dx = static_cast<T>(sx) - x;
+          const T dy = static_cast<T>(sy) - y;
           if(sx>=0 && sy>=0 && sx<data_width && sy < data_height)
             res += GET_DATA_POINT(sx, sy) * static_cast<T>(kernel::value(dx) * kernel::value(dy));
         }
@@ -156,7 +156,7 @@ __global__ void ResamplerGrad2DKernel(
     const int num_sampling_points) {
   const int resampler_output_size =
       batch_size * num_sampling_points * data_channels;
-  using kernel = tensorflow::addons::functor::ResamplerKernelHelper<kernel_functor_class, float>;
+  using kernel = tensorflow::addons::functor::ResamplerKernelHelper<kernel_functor_class, T>;
   GPU_1D_KERNEL_LOOP(index, resampler_output_size) {
     const int out_index = index;
 
@@ -194,8 +194,8 @@ __global__ void ResamplerGrad2DKernel(
     if (x > static_cast<T>(-1.0) && y > static_cast<T>(-1.0) &&
         x < static_cast<T>(data_width) && y < static_cast<T>(data_height)) {
       // Precompute floor (f) and ceil (c) values for x and y.
-      const int fx = std::floor(static_cast<float>(x));
-      const int fy = std::floor(static_cast<float>(y));
+      const int fx = std::floor(x);
+      const int fy = std::floor(y);
 
       T ddx = zero; // Accumulator for warp derivative (x component)
       T ddy = zero; // Accumulator for warp derivative (y component)
@@ -205,8 +205,8 @@ __global__ void ResamplerGrad2DKernel(
         for(int iny=-span_size; iny <= span_size; iny++){
                 const int sx = fx + inx;
                 const int sy = fy + iny;
-                const float dx = static_cast<float>(sx) - static_cast<float>(x);
-                const float dy = static_cast<float>(sy) - static_cast<float>(y);
+                const T dx = static_cast<T>(sx) - x;
+                const T dy = static_cast<T>(sy) - y;
                 if(sx >= 0 && sy >= 0 && sx < data_width && sy < data_height) {
                     auto val = GET_DATA_POINT(sx, sy);
 

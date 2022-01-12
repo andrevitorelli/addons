@@ -65,9 +65,7 @@ struct Resampler2DFunctor<CPUDevice, kernel_functor_class, T> {
     const T zero = static_cast<T>(0.0);
     //const T one = static_cast<T>(1.0);
 
-    using kernel = ResamplerKernelHelper<kernel_functor_class, float>;
-    // Creating the interpolation kernel
-    //auto kernel = ResamplerKernelHelper<kernel_functor_class>::createKernelFunction();
+    using kernel = ResamplerKernelHelper<kernel_functor_class, T>;
 
     auto resample_batches = [&](const int start, const int limit) {
       for (int batch_id = start; batch_id < limit; ++batch_id) {
@@ -105,8 +103,8 @@ struct Resampler2DFunctor<CPUDevice, kernel_functor_class, T> {
               y < static_cast<T>(data_height)) {
 
             // Precompute floor (f) and ceil (c) values for x and y.
-            const int fx = std::floor(static_cast<float>(x));
-            const int fy = std::floor(static_cast<float>(y));
+            const int fx = std::floor(x);
+            const int fy = std::floor(y);
 
             const int span_size =
               static_cast<int>(std::ceil(kernel::radius()));
@@ -117,8 +115,8 @@ struct Resampler2DFunctor<CPUDevice, kernel_functor_class, T> {
                 for(int iny=-span_size; iny <= span_size; iny++){        
                   const int cx = fx + inx;
                   const int cy = fy + iny;
-                  const float dx = static_cast<float>(cx) - static_cast<float>(x);
-                  const float dy = static_cast<float>(cy) - static_cast<float>(y);
+                  const T dx = static_cast<T>(cx) - x;
+                  const T dy = static_cast<T>(cy) - y;
                   res += get_data_point(cx, cy, chan) * static_cast<T>(kernel::value(dx) * kernel::value(dy));
                 }
               }
@@ -295,7 +293,7 @@ struct ResamplerGrad2DFunctor<CPUDevice, kernel_functor_class, T> {
     const T zero = static_cast<T>(0.0);
     //const T one = static_cast<T>(1.0);
     
-    using kernel = ResamplerKernelHelper<kernel_functor_class, float>;
+    using kernel = ResamplerKernelHelper<kernel_functor_class, T>;
     // Creating the interpolation kernel and its 1st derivative
     //auto kernel = ResamplerKernelHelper<kernel_functor_class>::createKernelFunction();
     //auto kernelderivative = ResamplerKernelHelper<kernel_functor_class>::createKernelDerivativeFunction();
@@ -345,8 +343,8 @@ struct ResamplerGrad2DFunctor<CPUDevice, kernel_functor_class, T> {
               x < static_cast<T>(data_width) &&
               y < static_cast<T>(data_height)) {
             // Precompute floor (f) and ceil (c) values for x and y.
-            const int fx = std::floor(static_cast<float>(x));
-            const int fy = std::floor(static_cast<float>(y));
+            const int fx = std::floor(x);
+            const int fy = std::floor(y);
           
             for (int chan = 0; chan < data_channels; ++chan) {
             
@@ -360,8 +358,8 @@ struct ResamplerGrad2DFunctor<CPUDevice, kernel_functor_class, T> {
                 for(int iny=-span_size; iny <= span_size; iny++){        
                   const int cx = fx + inx;
                   const int cy = fy + iny;
-                  const float dx = static_cast<float>(cx) - static_cast<float>(x);
-                  const float dy = static_cast<float>(cy) - static_cast<float>(y);
+                  const T dx = static_cast<T>(cx) - x;
+                  const T dy = static_cast<T>(cy) - y;
                   auto val = get_data_point(cx, cy, chan);
                   
                   auto kernel_x = kernel::value(dx);
