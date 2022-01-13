@@ -72,7 +72,7 @@ class ResamplerKernelHelper<ResamplingKernelType::BernsteinQuintic, T> {
 public:
     UNIAPI static T value(T x) {
         x = abs(x);
-        // The Compiler should be able to optimize the comparison sequence
+        // I'm not going fancy here, the compiler should be able to optimize the comparison sequence
         if (x <=1.0f) {
             return (((static_cast<T>(-55)*x + static_cast<T>(138))*x - static_cast<T>(95))*x*x*x + static_cast<T>(12))/static_cast<T>(12);
         } else if (x <=2.0f) {
@@ -93,7 +93,7 @@ public:
         } else if (x <=2.0f) {
             ret = ((((static_cast<T>(275*x) - static_cast<T>(1656))*x + static_cast<T>(3615))*x - static_cast<T>(3360))*x + static_cast<T>(1110))/static_cast<T>(24);
         } else if (x <= 3.0f) {
-            return ((((static_cast<T>(-55)*x + static_cast<T>(552))*x - static_cast<T>(2055))*x + static_cast<T>(3360))*x - static_cast<T>(2034))/static_cast<T>(24);
+            ret = ((((static_cast<T>(-55)*x + static_cast<T>(552))*x - static_cast<T>(2055))*x + static_cast<T>(3360))*x - static_cast<T>(2034))/static_cast<T>(24);
         } else {
             ret = static_cast<T>(0.0f);
         };
