@@ -66,6 +66,8 @@ struct Resampler2DFunctor<CPUDevice, kernel_functor_class, T> {
     //const T one = static_cast<T>(1.0);
 
     using kernel = ResamplerKernelHelper<kernel_functor_class, T>;
+    // Creating the interpolation kernel
+    //auto kernel = ResamplerKernelHelper<kernel_functor_class>::createKernelFunction();
 
     auto resample_batches = [&](const int start, const int limit) {
       for (int batch_id = start; batch_id < limit; ++batch_id) {
@@ -118,6 +120,7 @@ struct Resampler2DFunctor<CPUDevice, kernel_functor_class, T> {
                   const T dx = static_cast<T>(cx) - x;
                   const T dy = static_cast<T>(cy) - y;
                   res += get_data_point(cx, cy, chan) * static_cast<T>(kernel::value(dx) * kernel::value(dy));
+                }
                 }
               }
               set_output(sample_id, chan, res);
