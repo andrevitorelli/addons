@@ -121,7 +121,6 @@ struct Resampler2DFunctor<CPUDevice, kernel_functor_class, T> {
                   const T dy = static_cast<T>(cy) - y;
                   res += get_data_point(cx, cy, chan) * static_cast<T>(kernel::value(dx) * kernel::value(dy));
                 }
-                }
               }
               set_output(sample_id, chan, res);
             }

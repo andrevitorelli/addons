@@ -83,7 +83,6 @@ __global__ void Resampler2DKernel(const T* __restrict__ data,
       // Precompute floor (f) and ceil (c) values for x and y.
       const int fx = std::floor(static_cast<T>(x));
       const int fy = std::floor(static_cast<T>(y));
-      }
       const int span_size = static_cast<int>(std::ceil(kernel::radius()));
       T res = zero;
       for(int inx=-span_size; inx <= span_size; inx++){
