@@ -152,9 +152,9 @@ def adamw_update_numpy(
         for v in (learning_rate, beta_1, beta_2, epsilon, weight_decay)
     )
     t = slot_vars.get("t", 0) + 1
-    lr_t = lr * np.sqrt(1 - beta2 ** t) / (1 - beta1 ** t)
+    lr_t = lr * np.sqrt(1 - beta2**t) / (1 - beta1**t)
     slot_vars["m"] = beta1 * slot_vars.get("m", 0) + (1 - beta1) * grad_t
-    slot_vars["v"] = beta2 * slot_vars.get("v", 0) + (1 - beta2) * grad_t ** 2
+    slot_vars["v"] = beta2 * slot_vars.get("v", 0) + (1 - beta2) * grad_t**2
     param_t = param * (1 - wd) - lr_t * slot_vars["m"] / (np.sqrt(slot_vars["v"]) + eps)
     slot_vars["t"] = t
     return param_t, slot_vars
@@ -246,9 +246,14 @@ def test_exclude_weight_decay_adamw():
     optimizer = weight_decay_optimizers.AdamW(
         learning_rate=1e-4, weight_decay=1e-4, exclude_from_weight_decay=["var1"]
     )
-    assert optimizer._do_use_weight_decay(tf.Variable([], name="var0"))
-    assert not optimizer._do_use_weight_decay(tf.Variable([], name="var1"))
-    assert not optimizer._do_use_weight_decay(tf.Variable([], name="var1_weight"))
+    var0 = tf.Variable([], name="var0")
+    var1 = tf.Variable([], name="var1")
+    var1_weight = tf.Variable([], name="var1_weight")
+
+    optimizer._set_decay_var_list([var0, var1, var1_weight])
+    assert optimizer._do_use_weight_decay(var0)
+    assert not optimizer._do_use_weight_decay(var1)
+    assert not optimizer._do_use_weight_decay(var1_weight)
 
 
 @pytest.mark.parametrize("dtype", [(tf.half, 0), (tf.float32, 1), (tf.float64, 2)])
@@ -371,9 +376,14 @@ def test_exclude_weight_decay_sgdw():
     optimizer = weight_decay_optimizers.SGDW(
         learning_rate=0.01, weight_decay=1e-4, exclude_from_weight_decay=["var1"]
     )
-    assert optimizer._do_use_weight_decay(tf.Variable([], name="var0"))
-    assert not optimizer._do_use_weight_decay(tf.Variable([], name="var1"))
-    assert not optimizer._do_use_weight_decay(tf.Variable([], name="var1_weight"))
+    var0 = tf.Variable([], name="var0")
+    var1 = tf.Variable([], name="var1")
+    var1_weight = tf.Variable([], name="var1_weight")
+
+    optimizer._set_decay_var_list([var0, var1, var1_weight])
+    assert optimizer._do_use_weight_decay(var0)
+    assert not optimizer._do_use_weight_decay(var1)
+    assert not optimizer._do_use_weight_decay(var1_weight)
 
 
 @pytest.mark.usefixtures("maybe_run_functions_eagerly")

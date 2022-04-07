@@ -421,6 +421,9 @@ def test_shear_x(dtype):
     transform_matrix = transform.AffineTransform(
         np.array([[1, level.numpy(), 0], [0, 1, 0], [0, 0, 1]])
     )
+    if dtype == tf.uint8:
+        # uint8 can't represent cval=-1, so we use int32 instead
+        image = image.astype(np.int32)
     expected_img = transform.warp(
         image, transform_matrix, order=0, cval=-1, preserve_range=True
     )
@@ -445,6 +448,9 @@ def test_shear_y(dtype):
     transform_matrix = transform.AffineTransform(
         np.array([[1, 0, 0], [level.numpy(), 1, 0], [0, 0, 1]])
     )
+    if dtype == tf.uint8:
+        # uint8 can't represent cval=-1, so we use int32 instead
+        image = image.astype(np.int32)
     expected_img = transform.warp(
         image, transform_matrix, order=0, cval=-1, preserve_range=True
     )

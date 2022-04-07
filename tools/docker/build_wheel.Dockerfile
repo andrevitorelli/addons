@@ -5,6 +5,10 @@ FROM tensorflow/build:latest-python$PY_VERSION as base_install
 ENV TF_NEED_CUDA="1"
 ARG PY_VERSION
 ARG TF_VERSION
+
+# TODO: Remove this if tensorflow/build container removes their keras-nightly install
+RUN python -m pip uninstall -y keras-nightly
+
 RUN python -m pip install --default-timeout=1000 tensorflow==$TF_VERSION
 
 COPY tools/install_deps/ /install_deps
@@ -27,8 +31,11 @@ ARG NIGHTLY_TIME
 
 RUN python configure.py
 
-RUN bash tools/testing/build_and_run_tests.sh && \
-    bazel build \
+# Test Before Building
+RUN bash tools/testing/build_and_run_tests.sh
+
+# Build
+RUN bazel build \
         --noshow_progress \
         --noshow_loading_progress \
         --verbose_failures \
