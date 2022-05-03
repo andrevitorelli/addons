@@ -125,18 +125,6 @@ struct Resampler2DFunctor<GPUDevice, kernel_functor_class, T> {
   }
 };
 
-// FIXME: Move factory code to common header so this can be removed
-template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::Triangle, Eigen::half>;
-template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::Triangle, float>;
-template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::Triangle, double>;
-template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, Eigen::half>;
-template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, float>;
-template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, double>;
-template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::BernsteinQuintic, Eigen::half>;
-template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::BernsteinQuintic, float>;
-template struct Resampler2DFunctor<GPUDevice, ResamplingKernelType::BernsteinQuintic, double>;
-
-
 }  // namespace functor
 
 namespace {
@@ -222,49 +210,6 @@ __global__ void ResamplerGrad2DKernel(
       // Update partial gradients wrt relevant warp field entries
       *(grad_warp + warp_id_x) +=  static_cast<T>(grad_output_value * ddx);
       *(grad_warp + warp_id_y) +=  static_cast<T>(grad_output_value * ddy);
-      //GpuAtomicAdd(grad_warp + warp_id_x,  static_cast<T>(grad_output_value * ddx));
-      //GpuAtomicAdd(grad_warp + warp_id_y,  static_cast<T>(grad_output_value * ddy));
-
-      /*
-      const int cx = fx + 1;
-      const int cy = fy + 1;
-      const T dx = static_cast<T>(cx) - x;
-      const T dy = static_cast<T>(cy) - y;
-
-      const T img_fxfy = (fx >= 0 && fy >= 0) ? GET_DATA_POINT(fx, fy) : zero;
-
-      const T img_cxcy = (cx <= data_width - 1 && cy <= data_height - 1)
-                             ? GET_DATA_POINT(cx, cy)
-                             : zero;
-
-      const T img_fxcy =
-          (fx >= 0 && cy <= data_height - 1) ? GET_DATA_POINT(fx, cy) : zero;
-
-      const T img_cxfy =
-          (cx <= data_width - 1 && fy >= 0) ? GET_DATA_POINT(cx, fy) : zero;
-
-      // Update partial gradients wrt relevant warp field entries
-      GpuAtomicAdd(grad_warp + warp_id_x,
-                   grad_output_value * ((one - dy) * (img_cxcy - img_fxcy) +
-                                        dy * (img_cxfy - img_fxfy)));
-      GpuAtomicAdd(grad_warp + warp_id_y,
-                   grad_output_value * ((one - dx) * (img_cxcy - img_cxfy) +
-                                        dx * (img_fxcy - img_fxfy)));
-
-      // Update partial gradients wrt sampled data
-      if (fx >= 0 && fy >= 0) {
-        UPDATE_GRAD_DATA_POINT(fx, fy, grad_output_value * dx * dy);
-      }
-      if (cx <= data_width - 1 && cy <= data_height - 1) {
-        UPDATE_GRAD_DATA_POINT(cx, cy,
-                               grad_output_value * (one - dx) * (one - dy));
-      }
-      if (fx >= 0 && cy <= data_height - 1) {
-        UPDATE_GRAD_DATA_POINT(fx, cy, grad_output_value * dx * (one - dy));
-      }
-      if (cx <= data_width - 1 && fy >= 0) {
-        UPDATE_GRAD_DATA_POINT(cx, fy, grad_output_value * (one - dx) * dy);
-      }*/
     }
   }
 }
@@ -310,19 +255,34 @@ struct ResamplerGrad2DFunctor<GPUDevice, kernel_functor_class, T> {
                                 data_channels, num_sampling_points));
   }
 };
-
-template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::Triangle, Eigen::half>;
-template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::Triangle, float>;
-template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::Triangle, double>;
-template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, Eigen::half>;
-template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, float>;
-template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::KeysCubic, double>;
-template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::BernsteinQuintic, Eigen::half>;
-template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::BernsteinQuintic, float>;
-template struct ResamplerGrad2DFunctor<GPUDevice, ResamplingKernelType::BernsteinQuintic, double>;
-
-
 }  // namespace functor
+
+#include "register_kernel_factory.h"
+
+#define REGISTER(TYPE)                                                       \
+  REGISTER_KERNEL_FACTORY(                                                   \
+      Name("Addons>Resampler").Device(DEVICE_GPU).TypeConstraint<TYPE>("T"), \
+      ResamplerOpFactory<GPUDevice, TYPE>)
+
+TF_CALL_half(REGISTER);
+TF_CALL_float(REGISTER);
+TF_CALL_double(REGISTER);
+#undef REGISTER
+
+#define REGISTER(TYPE)                                    \
+  REGISTER_KERNEL_FACTORY(Name("Addons>ResamplerGrad")    \
+                              .Device(DEVICE_GPU)         \
+                              .TypeConstraint<TYPE>("T"), \
+                          ResamplerGradOpFactory<GPUDevice, TYPE>)
+
+TF_CALL_half(REGISTER);
+TF_CALL_double(REGISTER);
+TF_CALL_float(REGISTER);
+#undef REGISTER
+
+
 }  // namespace addons
 }  // namespace tensorflow
+
+
 #endif  // GOOGLE_CUDA
