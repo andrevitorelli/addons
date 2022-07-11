@@ -30,6 +30,7 @@ REGISTER_OP("Addons>Resampler")
     .Input("warp: T")
     .Output("output: T")
     .Attr("T: {half, float, double}")
+    .Attr("kernel_type: string = 'triangle'")
     .SetShapeFn([](InferenceContext* c) {
       ShapeHandle data;
       ShapeHandle warp;
@@ -54,6 +55,7 @@ REGISTER_OP("Addons>ResamplerGrad")
     .Output("grad_data: T")
     .Output("grad_warp: T")
     .Attr("T: {half, float, double}")
+    .Attr("kernel_type: string = 'triangle'")
     .SetShapeFn([](InferenceContext* c) {
       c->set_output(0, c->input(0));
       c->set_output(1, c->input(1));
