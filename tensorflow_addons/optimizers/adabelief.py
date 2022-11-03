@@ -17,11 +17,12 @@
 import tensorflow as tf
 from tensorflow_addons.utils.types import FloatTensorLike
 
+from tensorflow_addons.optimizers import KerasLegacyOptimizer
 from typing import Union, Callable, Dict
 
 
 @tf.keras.utils.register_keras_serializable(package="Addons")
-class AdaBelief(tf.keras.optimizers.Optimizer):
+class AdaBelief(KerasLegacyOptimizer):
     """Variant of the Adam optimizer.
 
     It achieves fast convergence as Adam and generalization comparable to SGD.
@@ -113,7 +114,7 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
             rectify: boolean. Whether to apply learning rate rectification as
                 from RAdam.
             total_steps: An integer. Total number of training steps. Enable
-                warmup by setting a positive value.
+                warmup by setting a value greater than zero.
             warmup_proportion: A floating point value. The proportion of
                 increasing steps.
             min_lr: A floating point value. Minimum learning rate after warmup.
@@ -140,7 +141,7 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
         self._set_hyper("decay", self._initial_decay)
         self._set_hyper("weight_decay", weight_decay)
         self._set_hyper("sma_threshold", sma_threshold)
-        self._set_hyper("total_steps", int(total_steps))
+        self._set_hyper("total_steps", float(total_steps))
         self._set_hyper("warmup_proportion", warmup_proportion)
         self._set_hyper("min_lr", min_lr)
         self.epsilon = epsilon or tf.keras.backend.epsilon()
@@ -200,7 +201,8 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
         sma_t = sma_inf - 2.0 * local_step * beta_2_power / (1.0 - beta_2_power)
 
         m_t = m.assign(
-            beta_1_t * m + (1.0 - beta_1_t) * grad, use_locking=self._use_locking
+            beta_1_t * m + (1.0 - beta_1_t) * grad,
+            use_locking=self._use_locking,
         )
         m_corr_t = m_t / (1.0 - beta_1_power)
 
@@ -325,7 +327,7 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
                 "epsilon": self.epsilon,
                 "amsgrad": self.amsgrad,
                 "rectify": self.rectify,
-                "total_steps": self._serialize_hyperparameter("total_steps"),
+                "total_steps": int(self._serialize_hyperparameter("total_steps")),
                 "warmup_proportion": self._serialize_hyperparameter(
                     "warmup_proportion"
                 ),

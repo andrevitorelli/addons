@@ -28,7 +28,7 @@ REGISTER_OP("Addons>EmbeddingBag")
     .Input("params: T")
     .Input("weights: T")
     .Output("output: T")
-    .Attr("T: {half, float, double}")
+    .Attr("T: {bfloat16, half, float, double}")
     .Attr("Tindices: {int32, int64}")
     .Attr("combiner: {'SUM', 'MEAN'} = 'SUM'")
     .SetShapeFn([](InferenceContext* c) {
@@ -41,7 +41,7 @@ REGISTER_OP("Addons>EmbeddingBag")
           c->ReplaceDim(indices, c->Rank(indices) - 1, output_dim, &output));
       TF_RETURN_IF_ERROR(c->Merge(indices, weights, &unused));
       c->set_output(0, output);
-      return Status::OK();
+      return Status();
     });
 
 REGISTER_OP("Addons>EmbeddingBagGrad")
@@ -51,7 +51,7 @@ REGISTER_OP("Addons>EmbeddingBagGrad")
     .Input("grads: T")
     .Output("params_grads: T")
     .Output("weights_grads: T")
-    .Attr("T: {half, float, double}")
+    .Attr("T: {bfloat16, half, float, double}")
     .Attr("Tindices: {int32, int64}")
     .Attr("combiner: {'SUM', 'MEAN'} = 'SUM'")
     .SetShapeFn([](InferenceContext* c) {
@@ -63,7 +63,7 @@ REGISTER_OP("Addons>EmbeddingBagGrad")
       TF_RETURN_IF_ERROR(c->Merge(indices, weights, &unused));
       c->set_output(0, c->input(1));
       c->set_output(1, c->input(2));
-      return Status::OK();
+      return Status();
     });
 
 }  // namespace addons

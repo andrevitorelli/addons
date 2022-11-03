@@ -17,24 +17,37 @@ import abc
 import warnings
 
 import tensorflow as tf
+from tensorflow_addons.optimizers import KerasLegacyOptimizer
 from tensorflow_addons.utils import types
-
 from typeguard import typechecked
 
 
-class AveragedOptimizerWrapper(tf.keras.optimizers.Optimizer, metaclass=abc.ABCMeta):
+class AveragedOptimizerWrapper(KerasLegacyOptimizer, metaclass=abc.ABCMeta):
     @typechecked
     def __init__(
-        self, optimizer: types.Optimizer, name: str = "AverageOptimizer", **kwargs
+        self,
+        optimizer: types.Optimizer,
+        name: str = "AverageOptimizer",
+        **kwargs,
     ):
         super().__init__(name, **kwargs)
 
         if isinstance(optimizer, str):
-            optimizer = tf.keras.optimizers.get(optimizer)
+            if (
+                hasattr(tf.keras.optimizers, "legacy")
+                and KerasLegacyOptimizer == tf.keras.optimizers.legacy.Optimizer
+            ):
+                optimizer = tf.keras.optimizers.get(
+                    optimizer, use_legacy_optimizer=True
+                )
+            else:
+                optimizer = tf.keras.optimizers.get(optimizer)
 
-        if not isinstance(optimizer, tf.keras.optimizers.Optimizer):
+        if not isinstance(optimizer, KerasLegacyOptimizer):
             raise TypeError(
-                "optimizer is not an object of tf.keras.optimizers.Optimizer"
+                "optimizer is not an object of tf.keras.optimizers.Optimizer "
+                "or tf.keras.optimizers.legacy.Optimizer "
+                "(if you have tf version >= 2.11.0)."
             )
 
         self._optimizer = optimizer
@@ -132,7 +145,8 @@ class AveragedOptimizerWrapper(tf.keras.optimizers.Optimizer, metaclass=abc.ABCM
             try:
                 assign_ops.append(
                     var.assign(
-                        self.get_slot(var, "average"), use_locking=self._use_locking
+                        self.get_slot(var, "average"),
+                        use_locking=self._use_locking,
                     )
                 )
             except Exception as e:

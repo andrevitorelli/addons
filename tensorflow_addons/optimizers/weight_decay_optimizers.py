@@ -14,6 +14,7 @@
 # ==============================================================================
 """Base class to make optimizers weight decay ready."""
 
+import importlib
 import tensorflow as tf
 from tensorflow_addons.utils.types import FloatTensorLike
 from tensorflow_addons.optimizers.utils import is_variable_matched_by_regexes
@@ -25,7 +26,7 @@ from typing import Union, Callable, Type, Optional, List
 class DecoupledWeightDecayExtension:
     """This class allows to extend optimizers with decoupled weight decay.
 
-    It implements the decoupled weight decay described by Loshchilov & Hutter
+    It implements the decoupled weight decay described by [Loshchilov & Hutter]
     (https://arxiv.org/pdf/1711.05101.pdf), in which the weight decay is
     decoupled from the optimization steps w.r.t. to the loss function.
     For SGD variants, this simplifies hyperparameter search since it decouples
@@ -126,7 +127,13 @@ class DecoupledWeightDecayExtension:
         return cls(**config)
 
     def minimize(
-        self, loss, var_list, grad_loss=None, name=None, decay_var_list=None, tape=None
+        self,
+        loss,
+        var_list,
+        grad_loss=None,
+        name=None,
+        decay_var_list=None,
+        tape=None,
     ):
         """Minimize `loss` by updating `var_list`.
 
@@ -261,10 +268,18 @@ class DecoupledWeightDecayExtension:
         return var.ref() in self._decay_var_list
 
 
+if importlib.util.find_spec("tensorflow.keras.optimizers.legacy") is not None:
+    keras_legacy_optimizer = Union[
+        tf.keras.optimizers.legacy.Optimizer, tf.keras.optimizers.Optimizer
+    ]
+else:
+    keras_legacy_optimizer = tf.keras.optimizers.Optimizer
+
+
 @typechecked
 def extend_with_decoupled_weight_decay(
-    base_optimizer: Type[tf.keras.optimizers.Optimizer],
-) -> Type[tf.keras.optimizers.Optimizer]:
+    base_optimizer: Type[keras_legacy_optimizer],
+) -> Type[keras_legacy_optimizer]:
     """Factory function returning an optimizer class with decoupled weight
     decay.
 
@@ -334,7 +349,7 @@ def extend_with_decoupled_weight_decay(
         This class computes the update step of `base_optimizer` and
         additionally decays the variable with the weight decay being
         decoupled from the optimization steps w.r.t. to the loss
-        function, as described by Loshchilov & Hutter
+        function, as described by [Loshchilov & Hutter]
         (https://arxiv.org/pdf/1711.05101.pdf). For SGD variants, this
         simplifies hyperparameter search since it decouples the settings
         of weight decay and learning rate. For adaptive gradient
@@ -345,7 +360,10 @@ def extend_with_decoupled_weight_decay(
 
         @typechecked
         def __init__(
-            self, weight_decay: Union[FloatTensorLike, Callable], *args, **kwargs
+            self,
+            weight_decay: Union[FloatTensorLike, Callable],
+            *args,
+            **kwargs,
         ):
             # super delegation is necessary here
             super().__init__(weight_decay, *args, **kwargs)
@@ -358,9 +376,8 @@ class SGDW(DecoupledWeightDecayExtension, tf.keras.optimizers.SGD):
     """Optimizer that implements the Momentum algorithm with weight_decay.
 
     This is an implementation of the SGDW optimizer described in "Decoupled
-    Weight Decay Regularization" by Loshchilov & Hutter
-    (https://arxiv.org/abs/1711.05101)
-    ([pdf])(https://arxiv.org/pdf/1711.05101.pdf).
+    Weight Decay Regularization" by [Loshchilov & Hutter]
+    (https://arxiv.org/pdf/1711.05101.pdf).
     It computes the update step of `tf.keras.optimizers.SGD` and additionally
     decays the variable. Note that this is different from adding
     L2 regularization on the variables to the loss. Decoupling the weight decay
@@ -433,14 +450,19 @@ class SGDW(DecoupledWeightDecayExtension, tf.keras.optimizers.SGD):
         )
 
 
+if hasattr(tf.keras.optimizers, "legacy"):
+    ADAM_CLASS = tf.keras.optimizers.legacy.Adam
+else:
+    ADAM_CLASS = tf.keras.optimizers.Adam
+
+
 @tf.keras.utils.register_keras_serializable(package="Addons")
-class AdamW(DecoupledWeightDecayExtension, tf.keras.optimizers.Adam):
+class AdamW(DecoupledWeightDecayExtension, ADAM_CLASS):
     """Optimizer that implements the Adam algorithm with weight decay.
 
     This is an implementation of the AdamW optimizer described in "Decoupled
-    Weight Decay Regularization" by Loshch ilov & Hutter
-    (https://arxiv.org/abs/1711.05101)
-    ([pdf])(https://arxiv.org/pdf/1711.05101.pdf).
+    Weight Decay Regularization" by [Loshchilov & Hutter]
+    (https://arxiv.org/pdf/1711.05101.pdf).
 
     It computes the update step of `tf.keras.optimizers.Adam` and additionally
     decays the variable. Note that this is different from adding L2

@@ -16,11 +16,12 @@
 import tensorflow as tf
 from tensorflow_addons.utils import types
 
+from tensorflow_addons.optimizers import KerasLegacyOptimizer
 from typeguard import typechecked
 
 
 @tf.keras.utils.register_keras_serializable(package="Addons")
-class Lookahead(tf.keras.optimizers.Optimizer):
+class Lookahead(KerasLegacyOptimizer):
     """This class allows to extend optimizers with the lookahead mechanism.
 
     The mechanism is proposed by Michael R. Zhang et.al in the paper
@@ -70,10 +71,19 @@ class Lookahead(tf.keras.optimizers.Optimizer):
         super().__init__(name, **kwargs)
 
         if isinstance(optimizer, str):
-            optimizer = tf.keras.optimizers.get(optimizer)
-        if not isinstance(optimizer, tf.keras.optimizers.Optimizer):
+            if (
+                hasattr(tf.keras.optimizers, "legacy")
+                and KerasLegacyOptimizer == tf.keras.optimizers.legacy.Optimizer
+            ):
+                optimizer = tf.keras.optimizers.get(
+                    optimizer, use_legacy_optimizer=True
+                )
+            else:
+                optimizer = tf.keras.optimizers.get(optimizer)
+        if not isinstance(optimizer, KerasLegacyOptimizer):
             raise TypeError(
-                "optimizer is not an object of tf.keras.optimizers.Optimizer"
+                "optimizer is not an object of tf.keras.optimizers.Optimizer "
+                "or tf.keras.optimizers.legacy.Optimizer (if you have tf version >= 2.11.0)."
             )
 
         self._optimizer = optimizer
@@ -115,10 +125,12 @@ class Lookahead(tf.keras.optimizers.Optimizer):
         )
         with tf.control_dependencies([step_back]):
             slow_update = slow_var.assign(
-                tf.where(sync_cond, step_back, slow_var), use_locking=self._use_locking
+                tf.where(sync_cond, step_back, slow_var),
+                use_locking=self._use_locking,
             )
             var_update = var.assign(
-                tf.where(sync_cond, step_back, var), use_locking=self._use_locking
+                tf.where(sync_cond, step_back, var),
+                use_locking=self._use_locking,
             )
         return tf.group(slow_update, var_update)
 
